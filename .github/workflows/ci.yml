@@ -18,6 +18,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
 
     steps:
       - uses: actions/checkout@v4
@@ -51,8 +52,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=api-${{ steps.image-name.outputs.name }}
+          cache-to: type=gha,mode=max,scope=api-${{ steps.image-name.outputs.name }}
 
       - name: Trigger Infra deploy (prod)
         env:
@@ -109,6 +110,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
 
     steps:
       - uses: actions/checkout@v4
@@ -137,8 +139,8 @@ jobs:
           context: .
           push: true
           tags: ${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:${{ steps.image-tag.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=api-${{ steps.image-tag.outputs.name }}
+          cache-to: type=gha,mode=max,scope=api-${{ steps.image-tag.outputs.name }}
 
       - name: Trigger Infra deploy (test)
         env:
