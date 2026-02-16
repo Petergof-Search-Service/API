@@ -27,7 +27,9 @@ dependencies = [
     "torch (>=2.10.0,<3.0.0)",
     "python-multipart (>=0.0.22,<0.0.23)",
     "pypdf2 (>=3.0.1,<4.0.0)",
-    "greenlet (>=3.3.1,<4.0.0)"
+    "greenlet (>=3.3.1,<4.0.0)",
+    "alembic (>=1.18.4,<2.0.0)",
+    "psycopg2-binary (>=2.9.11,<3.0.0)"
 ]
 
 
