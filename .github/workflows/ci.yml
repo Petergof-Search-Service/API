@@ -54,12 +54,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:buildcache
-            type=gha,scope=main
-          cache-to: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:buildcache,mode=max
-            type=gha,mode=max,scope=main
+          cache-from: type=gha,scope=main
+          cache-to: type=gha,mode=max,scope=main
+          provenance: false
+          sbom: false
 
       - name: Trigger Infra deploy (prod)
         env:
@@ -148,11 +146,11 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:${{ steps.image-tag.outputs.tag }}
           cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:buildcache
-            type=registry,ref=${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:latest
             type=gha,scope=${{ github.head_ref }}
             type=gha,scope=main
           cache-to: type=gha,mode=max,scope=${{ github.head_ref }}
+          provenance: false
+          sbom: false
 
       - name: Trigger Infra deploy (test)
         env:
