@@ -3,11 +3,9 @@ FROM python:3.13-slim AS deps
 
 WORKDIR /app
 
-# Install Poetry temporarily
+# Install Poetry and export plugin
 ENV POETRY_VERSION=2.1.4
-ENV POETRY_HOME=/opt/poetry
-ENV PATH="${POETRY_HOME}/bin:${PATH}"
-RUN pip install --no-cache-dir poetry==${POETRY_VERSION}
+RUN pip install --no-cache-dir poetry==${POETRY_VERSION} poetry-plugin-export
 
 # Export dependencies to requirements.txt
 COPY pyproject.toml poetry.lock ./
