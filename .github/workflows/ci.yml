@@ -86,8 +86,8 @@ jobs:
             echo "No new Infra workflow run started (last run created at $CREATED_AT, expected run within 90s after dispatch). Check that Infra repo has a workflow on repository_dispatch event_type api-updated."
             exit 1
           fi
-          echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
-          for i in $(seq 1 60); do
+          echo "Infra run id: $RUN_ID, waiting for completion (max 30 min)..."
+          for i in $(seq 1 120); do
             RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
               "${API_URL}/actions/runs/${RUN_ID}")
             STATUS=$(echo "$RUN_JSON" | jq -r '.status')
@@ -179,8 +179,8 @@ jobs:
             echo "No new Infra workflow run started (last run created at $CREATED_AT, expected run within 90s after dispatch). Check that Infra repo has a workflow on repository_dispatch event_type api-test-updated."
             exit 1
           fi
-          echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
-          for i in $(seq 1 60); do
+          echo "Infra run id: $RUN_ID, waiting for completion (max 30 min)..."
+          for i in $(seq 1 120); do
             RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
               "${API_URL}/actions/runs/${RUN_ID}")
             STATUS=$(echo "$RUN_JSON" | jq -r '.status')
