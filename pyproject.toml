@@ -1,0 +1,36 @@
+[tool.poetry]
+package-mode = false
+
+[project]
+name = "api"
+version = "0.1.0"
+description = "API for petergof science rag"
+authors = [
+    {name = "andrey-blight",email = "kizhinov05@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13,<3.15"
+dependencies = [
+    "fastapi (>=0.129.0,<0.130.0)",
+    "uvicorn (>=0.40.0,<0.41.0)",
+    "sqlalchemy (>=2.0.46,<3.0.0)",
+    "python-dotenv (>=1.2.1,<2.0.0)",
+    "pyjwt (>=2.11.0,<3.0.0)",
+    "asyncpg (>=0.31.0,<0.32.0)",
+    "faiss-cpu (>=1.13.2,<2.0.0)",
+    "yandex-cloud-ml-sdk (>=0.19.1,<0.20.0)",
+    "aiobotocore (>=3.1.3,<4.0.0)",
+    "rank-bm25 (>=0.2.2,<0.3.0)",
+    "boto3 (>=1.42.49,<2.0.0)",
+    "langchain (<=0.3.15)",
+    "transformers (>=5.1.0,<6.0.0)",
+    "torch (>=2.10.0,<3.0.0)",
+    "python-multipart (>=0.0.22,<0.0.23)",
+    "pypdf2 (>=3.0.1,<4.0.0)",
+    "greenlet (>=3.3.1,<4.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

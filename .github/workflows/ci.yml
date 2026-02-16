@@ -1,0 +1,201 @@
+name: Build and Push API
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  INFRA_REPO: "Infra"
+
+jobs:
+  build-and-push:
+    name: Build and push image (prod)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image name (lowercase for registry)
+        id: image-name
+        run: |
+          echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=main
+          cache-to: type=gha,mode=max,scope=main
+          provenance: false
+          sbom: false
+
+      - name: Trigger Infra deploy (prod)
+        env:
+          INFRA_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          API_URL: "https://api.github.com/repos/${{ github.repository_owner }}/${{ env.INFRA_REPO }}"
+        run: |
+          IMAGE_FULL="${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:latest"
+          curl -sSf -X POST \
+            -H "Authorization: token ${INFRA_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/dispatches" \
+            -d "{\"event_type\":\"api-updated\",\"client_payload\":{\"image\":\"${IMAGE_FULL}\"}}"
+          echo "Waiting for Infra workflow to start..."
+          sleep 15
+          RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0]')
+          RUN_ID=$(echo "$RUN_JSON" | jq -r '.id')
+          CREATED_AT=$(echo "$RUN_JSON" | jq -r '.created_at')
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "Could not find Infra workflow run"
+            exit 1
+          fi
+          CREATED_TS=$(date -d "$CREATED_AT" -u +%s 2>/dev/null)
+          NOW=$(date -u +%s)
+          if [ -z "$CREATED_TS" ] || [ $((NOW - CREATED_TS)) -gt 90 ]; then
+            echo "No new Infra workflow run started (last run created at $CREATED_AT, expected run within 90s after dispatch). Check that Infra repo has a workflow on repository_dispatch event_type api-updated."
+            exit 1
+          fi
+          echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
+          for i in $(seq 1 60); do
+            RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+              "${API_URL}/actions/runs/${RUN_ID}")
+            STATUS=$(echo "$RUN_JSON" | jq -r '.status')
+            CONCLUSION=$(echo "$RUN_JSON" | jq -r '.conclusion')
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                echo "Infra deploy succeeded."
+                exit 0
+              else
+                echo "Infra deploy failed (conclusion: $CONCLUSION)"
+                exit 1
+              fi
+            fi
+            echo "  status=$STATUS, waiting 15s..."
+            sleep 15
+          done
+          echo "Timeout waiting for Infra workflow"
+          exit 1
+
+  build-and-push-test:
+    name: Build and push image (test)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set image name and tag (branch + short sha)
+        id: image-tag
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          BRANCH_SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._-]/-/g' | cut -c1-50)
+          SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+          echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "tag=${BRANCH_SLUG}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:${{ steps.image-tag.outputs.tag }}
+          cache-from: |
+            type=gha,scope=${{ github.head_ref }}
+            type=gha,scope=main
+          cache-to: type=gha,mode=max,scope=${{ github.head_ref }}
+          provenance: false
+          sbom: false
+
+      - name: Trigger Infra deploy (test)
+        env:
+          INFRA_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          API_URL: "https://api.github.com/repos/${{ github.repository_owner }}/${{ env.INFRA_REPO }}"
+        run: |
+          IMAGE_FULL="${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:${{ steps.image-tag.outputs.tag }}"
+          curl -sSf -X POST \
+            -H "Authorization: token ${INFRA_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/dispatches" \
+            -d "{\"event_type\":\"api-test-updated\",\"client_payload\":{\"image\":\"${IMAGE_FULL}\"}}"
+          echo "Waiting for Infra workflow to start..."
+          sleep 15
+          RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0]')
+          RUN_ID=$(echo "$RUN_JSON" | jq -r '.id')
+          CREATED_AT=$(echo "$RUN_JSON" | jq -r '.created_at')
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "Could not find Infra workflow run"
+            exit 1
+          fi
+          CREATED_TS=$(date -d "$CREATED_AT" -u +%s 2>/dev/null)
+          NOW=$(date -u +%s)
+          if [ -z "$CREATED_TS" ] || [ $((NOW - CREATED_TS)) -gt 90 ]; then
+            echo "No new Infra workflow run started (last run created at $CREATED_AT, expected run within 90s after dispatch). Check that Infra repo has a workflow on repository_dispatch event_type api-test-updated."
+            exit 1
+          fi
+          echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
+          for i in $(seq 1 60); do
+            RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+              "${API_URL}/actions/runs/${RUN_ID}")
+            STATUS=$(echo "$RUN_JSON" | jq -r '.status')
+            CONCLUSION=$(echo "$RUN_JSON" | jq -r '.conclusion')
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                echo "Infra deploy succeeded."
+                exit 0
+              else
+                echo "Infra deploy failed (conclusion: $CONCLUSION)"
+                exit 1
+              fi
+            fi
+            echo "  status=$STATUS, waiting 15s..."
+            sleep 15
+          done
+          echo "Timeout waiting for Infra workflow"
+          exit 1
