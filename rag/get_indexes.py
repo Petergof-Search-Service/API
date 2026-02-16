@@ -1,49 +1,49 @@
-import json
 import os
-
-import boto3
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 load_dotenv()
-ACCESS_KEY=os.getenv("ACCESS_KEY")
-SECRET_KEY=os.getenv("SECRET_KEY_OCR")
-BUCKET_NAME = "markup-baket"
+YANDEX_API_KEY = os.getenv("YC_API_KEY")
+YANDEX_FOLDER_ID = os.getenv("YC_FOLDER_ID")
 
-def get_indexes():
-    list_indexes_filepath = "data/metadata/list_indexes.json"
-    s3_client = boto3.client(
-        "s3",
-        endpoint_url="https://storage.yandexcloud.net",
-        aws_access_key_id=ACCESS_KEY,
-        aws_secret_access_key=SECRET_KEY,
-    )
-    
-    response = s3_client.get_object(Bucket=BUCKET_NAME, Key=list_indexes_filepath)
-    list_indexes = json.load(response['Body'])
-    
-    return list(list_indexes.keys())
-    
 
-def get_files_by_index_name(name):
-    list_indexes_filepath = "data/metadata/list_indexes.json"
-    s3_client = boto3.client(
-        "s3",
-        endpoint_url="https://storage.yandexcloud.net",
-        aws_access_key_id=ACCESS_KEY,
-        aws_secret_access_key=SECRET_KEY,
+async def get_indexes(to_sort=False):
+    '''
+    Возвращает список названий всех индексов
+    names = ['name1', 'name2', ..., 'nameN']
+    По умолчанию возвращает в порядке создания индексов.
+    '''
+    client = AsyncOpenAI(
+        api_key=YANDEX_API_KEY,
+        base_url="https://ai.api.cloud.yandex.net/v1",
+        project=YANDEX_FOLDER_ID,
     )
-    
-    response = s3_client.get_object(Bucket=BUCKET_NAME, Key=list_indexes_filepath)
-    list_indexes = json.load(response['Body'])
-            
-    if name in list_indexes.keys():
-        return sorted(list_indexes[name]['files'])
-    
-    print('Несуществующий индекс')
-    return None
-    
-    
-if __name__ == "__main__":
-    get_indexes()
-    get_files_by_index_name("new")
-    
+
+    vector_stores = await client.vector_stores.list()
+    names = []
+    for i in vector_stores.data:
+        names.append(i.name)
+
+    if to_sort:
+        names = list(sorted(names))
+
+    return names
+
+
+async def get_indexes_names2ids(to_sort=False):
+    '''
+    Возвращает словарь names2ids
+    names = {'name1':'id1', 'name2':'id2', ...}
+    '''
+    client = AsyncOpenAI(
+        api_key=YANDEX_API_KEY,
+        base_url="https://ai.api.cloud.yandex.net/v1",
+        project=YANDEX_FOLDER_ID,
+    )
+
+    vector_stores = await client.vector_stores.list()
+    res = {}
+    for i in vector_stores.data:
+        res[i.name] = i.id
+
+    return res

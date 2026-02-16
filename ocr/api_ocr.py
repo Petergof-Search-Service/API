@@ -3,7 +3,7 @@ import json
 import boto3
 import subprocess
 from .OCR_async import YandexOCRAsync
-from rag.create_embeddings import get_embeddings
+from rag.upload_file import upload_file
 from dotenv import load_dotenv
 
 
@@ -115,7 +115,7 @@ class ApiOCR:
                 os.path.join("started_pdf", os.path.basename(pdf_name_txt))
             )
             print(f"Файл {pdf_name_txt} загружен в бакет {BUCKET_NAME} / started_pdf")
-            get_embeddings(pdf_name_txt.split('/')[-1])
+            upload_file(pdf_name_txt.split('/')[-1])
         except:
             print("Текст содержит вложенные структуры данных")
 
