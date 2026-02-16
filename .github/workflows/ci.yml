@@ -67,10 +67,18 @@ jobs:
             -d "{\"event_type\":\"api-updated\",\"client_payload\":{\"image\":\"${IMAGE_FULL}\"}}"
           echo "Waiting for Infra workflow to start..."
           sleep 15
-          RUN_ID=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
-            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0].id')
+          RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0]')
+          RUN_ID=$(echo "$RUN_JSON" | jq -r '.id')
+          CREATED_AT=$(echo "$RUN_JSON" | jq -r '.created_at')
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
             echo "Could not find Infra workflow run"
+            exit 1
+          fi
+          CREATED_TS=$(date -d "$CREATED_AT" -u +%s 2>/dev/null)
+          NOW=$(date -u +%s)
+          if [ -z "$CREATED_TS" ] || [ $((NOW - CREATED_TS)) -gt 90 ]; then
+            echo "No new Infra workflow run started (last run created at $CREATED_AT, expected run within 90s after dispatch). Check that Infra repo has a workflow on repository_dispatch event_type api-updated."
             exit 1
           fi
           echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
@@ -145,10 +153,18 @@ jobs:
             -d "{\"event_type\":\"api-test-updated\",\"client_payload\":{\"image\":\"${IMAGE_FULL}\"}}"
           echo "Waiting for Infra workflow to start..."
           sleep 15
-          RUN_ID=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
-            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0].id')
+          RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0]')
+          RUN_ID=$(echo "$RUN_JSON" | jq -r '.id')
+          CREATED_AT=$(echo "$RUN_JSON" | jq -r '.created_at')
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
             echo "Could not find Infra workflow run"
+            exit 1
+          fi
+          CREATED_TS=$(date -d "$CREATED_AT" -u +%s 2>/dev/null)
+          NOW=$(date -u +%s)
+          if [ -z "$CREATED_TS" ] || [ $((NOW - CREATED_TS)) -gt 90 ]; then
+            echo "No new Infra workflow run started (last run created at $CREATED_AT, expected run within 90s after dispatch). Check that Infra repo has a workflow on repository_dispatch event_type api-test-updated."
             exit 1
           fi
           echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
