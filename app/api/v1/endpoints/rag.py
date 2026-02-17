@@ -1,5 +1,6 @@
 import asyncio
 import threading
+from typing import LiteralString
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -17,13 +18,16 @@ import time
 
 router = APIRouter(dependencies=[Depends(validate_user)])
 
-tasks = {}
+tasks: dict[str, bool | tuple[str, LiteralString] | str] = {}
 
 
 @router.post("/answer", status_code=200, response_model=TaskResponse)
-async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends(validate_user),
-                              db: AsyncSession = Depends(get_db)):
-    if question_schema.index not in get_indexes(to_sort=True):
+async def get_answer_from_rag(
+    question_schema: RagQuestion,
+    user: User = Depends(validate_user),
+    db: AsyncSession = Depends(get_db),
+) -> TaskResponse:
+    if question_schema.index not in (await get_indexes(to_sort=True)):
         raise HTTPException(status_code=404, detail="Index not found")
 
     result = await db.execute(
@@ -35,13 +39,17 @@ async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends
     task_id = str(time.time())
     tasks[task_id] = False
 
-    def background_task(settings: UserSetting):
+    def background_task(settings: UserSetting) -> None:
         try:
-            indexesname2ids = get_indexes_names2ids()
-            answer = asyncio.run(get_answer(vector_store_id=indexesname2ids[question_schema.index],
-                                            question=question_schema.question,
-                                            temp=settings.temperature,
-                                            prompt=settings.prompt))
+            indexesname2ids = asyncio.run(get_indexes_names2ids())
+            answer = asyncio.run(
+                get_answer(
+                    vector_store_id=indexesname2ids[question_schema.index],
+                    question=question_schema.question,
+                    temp=settings.temperature,
+                    prompt=settings.prompt,
+                )
+            )
             tasks[task_id] = answer
         except Exception as e:
             tasks[task_id] = f"error: {str(e)}"
@@ -53,11 +61,16 @@ async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends
 
 
 @router.get("/answer/status/{task_id}", response_model=StatusResponse)
-async def check_status(task_id: str):
+async def check_status(task_id: str) -> StatusResponse:
     if task_id not in tasks:
         raise HTTPException(status_code=404, detail="Task not found")
     if not tasks[task_id]:
         raise HTTPException(status_code=404, detail="Still running")
     response = tasks[task_id]
     tasks.pop(task_id)
-    return StatusResponse(status=response[0] + '\n\n\n\n\n\n\n\n' + response[1])
+    if isinstance(response, tuple):
+        return StatusResponse(status=response[0] + "\n\n\n\n\n\n\n\n" + response[1])
+    elif isinstance(response, str):
+        return StatusResponse(status=response)
+    else:
+        raise HTTPException(status_code=500, detail="Unknown response type")

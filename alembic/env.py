@@ -67,7 +67,9 @@ def run_migrations_online() -> None:
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
         # Alembic использует синхронный драйвер; asyncpg -> psycopg2
-        sync_url = database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+        sync_url = database_url.replace(
+            "postgresql+asyncpg://", "postgresql+psycopg2://", 1
+        )
         connectable = create_engine(sync_url, poolclass=pool.NullPool)
     else:
         connectable = engine_from_config(
@@ -77,9 +79,7 @@ def run_migrations_online() -> None:
         )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

@@ -17,16 +17,16 @@ class Review(Base):
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Review(question={self.question}, model_answer={self.model_answer}, is_ok={self.is_ok}, corrected_answer={self.corrected_answer})>"
 
 
-async def create_review(db: AsyncSession, review: ReviewCreate):
+async def create_review(db: AsyncSession, review: ReviewCreate) -> Review:
     db_item = Review(
         question=review.question,
         model_answer=review.model_answer,
         is_ok=review.is_ok,
-        corrected_answer=review.correct_answer
+        corrected_answer=review.correct_answer,
     )
     db.add(db_item)
     await db.commit()

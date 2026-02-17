@@ -15,21 +15,25 @@ from app.db.models.user import get_user, create_user, User
 router = APIRouter()
 
 
-def generate_tokens(user_email) -> Token:
+def generate_tokens(user_email: str) -> Token:
     access_token_expires = timedelta(minutes=int(settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    access_token = create_token(data={"sub": user_email, "type": "access"},
-                                expires_delta=access_token_expires)
+    access_token = create_token(
+        data={"sub": user_email, "type": "access"}, expires_delta=access_token_expires
+    )
     refresh_token_expires = timedelta(days=int(settings.REFRESH_TOKEN_EXPIRE_DAYS))
-    refresh_token = create_token(data={"sub": user_email, "type": "refresh"},
-                                 expires_delta=refresh_token_expires)
-    return Token(access_token=access_token, refresh_token=refresh_token, token_type="bearer")
+    refresh_token = create_token(
+        data={"sub": user_email, "type": "refresh"}, expires_delta=refresh_token_expires
+    )
+    return Token(
+        access_token=access_token, refresh_token=refresh_token, token_type="bearer"
+    )
 
 
 # Feature: make refresh token unavailable after use
 @router.post("/refresh", response_model=Token)
-async def login_for_access_token(
-        refresh_token: str = Header(),
-        db: AsyncSession = Depends(get_db)) -> Token:
+async def refresh_token(
+    refresh_token: str = Header(), db: AsyncSession = Depends(get_db)
+) -> Token:
     payload = verify_refresh_token(refresh_token)
 
     email = payload.get("sub")
@@ -52,16 +56,16 @@ async def login_for_access_token(
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
-        form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-        db: AsyncSession = Depends(get_db)) -> Token:
-    user = await get_user(db, form_data.username)
-    if not user:
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: AsyncSession = Depends(get_db),
+) -> Token:
+    user: User | None = await get_user(db, form_data.username)
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    user = user[0]
     if user.hashed_password != get_hash(form_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -73,7 +77,7 @@ async def login_for_access_token(
 
 
 @router.post("/register", response_model=Token)
-async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)) -> Token:
     existing_user = await get_user(db, user.email)
     if existing_user:
         raise HTTPException(status_code=400, detail="User already registered")
@@ -83,5 +87,7 @@ async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserGet)
-async def read_users_me(user: User = Depends(validate_user)):
-    return UserGet(email=user.email, is_admin=user.is_admin if user.is_admin is not None else False)
+async def read_users_me(user: User = Depends(validate_user)) -> UserGet:
+    return UserGet(
+        email=user.email, is_admin=user.is_admin if user.is_admin is not None else False
+    )

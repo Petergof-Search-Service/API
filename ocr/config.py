@@ -8,11 +8,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    DATABASE_URL: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    REFRESH_TOKEN_EXPIRE_DAYS: int
-    JWT_SECRET_KEY: str
-    JWT_ALGORITHM: str = "HS256"
+    OCR_FOLDER_ID: str
+    OCR_ACCESS_KEY: str
+    OCR_SECRET_KEY: str
+    OCR_BUCKET_NAME: str
 
 
 settings = Settings()

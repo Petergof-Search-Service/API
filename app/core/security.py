@@ -1,5 +1,6 @@
 import hashlib
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 import jwt
 from fastapi import HTTPException, status
@@ -12,7 +13,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/token")
 
 def verify_refresh_token(refresh_token: str) -> dict:
     try:
-        payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload: dict = jwt.decode(
+            refresh_token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(
@@ -26,18 +29,16 @@ def verify_refresh_token(refresh_token: str) -> dict:
         )
 
 
-def create_token(data: dict, expires_delta: timedelta | None = None):
+def create_token(data: dict, expires_delta: timedelta = timedelta(minutes=15)) -> str:
     to_encode = data.copy()
+    to_encode.update({"exp": datetime.now(timezone.utc) + expires_delta})
 
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-
-    return encoded_jwt
+    return cast(
+        str,
+        jwt.encode(
+            to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
+        ),
+    )
 
 
 def get_hash(password: str) -> str:
