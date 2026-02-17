@@ -24,7 +24,7 @@ class User(Base):
         DateTime, server_default=func.now(), nullable=False
     )
 
-    settings = relationship(
+    settings: Mapped["UserSetting"] = relationship(
         "UserSetting", uselist=False, back_populates="user", cascade="all, delete-orphan"
     )
 

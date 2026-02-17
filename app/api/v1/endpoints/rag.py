@@ -1,5 +1,6 @@
 import asyncio
 import threading
+from typing import LiteralString
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -17,7 +18,7 @@ import time
 
 router = APIRouter(dependencies=[Depends(validate_user)])
 
-tasks = {}
+tasks: dict[str, bool | tuple[str, LiteralString] | str] = {}
 
 
 @router.post("/answer", status_code=200, response_model=TaskResponse)
@@ -60,4 +61,10 @@ async def check_status(task_id: str) -> StatusResponse:
         raise HTTPException(status_code=404, detail="Still running")
     response = tasks[task_id]
     tasks.pop(task_id)
-    return StatusResponse(status=response[0] + '\n\n\n\n\n\n\n\n' + response[1])
+    if isinstance(response, tuple):
+        return StatusResponse(status=response[0] + '\n\n\n\n\n\n\n\n' + response[1])
+    elif isinstance(response, str):
+        return StatusResponse(status=response)
+    else:
+        raise HTTPException(status_code=500, detail="Unknown response type")
+
