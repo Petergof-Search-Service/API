@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Annotated, cast
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordRequestForm
@@ -59,14 +59,13 @@ async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: AsyncSession = Depends(get_db),
 ) -> Token:
-    user = await get_user(db, form_data.username)
-    if not user:
+    user: User | None = await get_user(db, form_data.username)
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    user = cast(User, user[0])
     if user.hashed_password != get_hash(form_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
