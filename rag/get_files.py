@@ -1,31 +1,52 @@
 import os
-import json
-import asyncio
-import boto3
 from dotenv import load_dotenv
-
+from openai import AsyncOpenAI
 
 load_dotenv()
-ACCESS_KEY=os.getenv("ACCESS_KEY")
-SECRET_KEY=os.getenv("SECRET_KEY_OCR")
-BUCKET_NAME = "markup-baket"
+YANDEX_API_KEY = os.getenv("YC_API_KEY")
+YANDEX_FOLDER_ID = os.getenv("YC_FOLDER_ID")
 
 
-def get_files():
-    metadata_filepath = "data/metadata/metadata.json"
-
-    s3_client = boto3.client(
-    "s3",
-    endpoint_url="https://storage.yandexcloud.net",
-    aws_access_key_id=ACCESS_KEY,
-    aws_secret_access_key=SECRET_KEY,
+async def get_files(to_sort=False):
+    '''
+    Возвращает список названий всех файлов
+    names = ['name1', 'name2', ..., 'nameN']
+    По умолчанию возвращает в порядке добавления файлов.
+    '''
+    client = AsyncOpenAI(
+        api_key=YANDEX_API_KEY,
+        base_url="https://ai.api.cloud.yandex.net/v1",
+        project=YANDEX_FOLDER_ID,
     )
     
-    response = s3_client.get_object(Bucket=BUCKET_NAME, Key=metadata_filepath)
-    metadata = json.load(response['Body'])  # Декодируем содержимое
-    print(metadata.keys())
-    return sorted(metadata.keys())
+    files_list = await client.files.list()
+    filenames = []
     
-if __name__ == "__main__":
-    get_files()
+    for i in files_list.data:
+        filenames.append(i.filename)
+
+    if to_sort:
+        filenames = list(sorted(filenames))
+    
+    return filenames
+
+
+async def get_files_names2ids(to_sort=False):
+    '''
+    Возвращает словарь names2ids
+    names = {'name1':'id1', 'name2':'id2', ...}
+    '''
+    client = AsyncOpenAI(
+        api_key=YANDEX_API_KEY,
+        base_url="https://ai.api.cloud.yandex.net/v1",
+        project=YANDEX_FOLDER_ID,
+    )
+    
+    files_list = await client.files.list()
+    res = {}
+    
+    for i in files_list.data:
+        res[i.filename] = i.id
+    
+    return res
     

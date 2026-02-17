@@ -9,7 +9,8 @@ from sqlalchemy.orm import joinedload
 from app.core.dependencies import validate_user
 from app.db.models import User, UserSetting
 from app.db.session import get_db
-from rag import get_answer, get_indexes
+from rag.get_indexes import get_indexes, get_indexes_names2ids
+from rag.main import get_answer
 from app.db.schemas import TaskResponse, RagQuestion, StatusResponse
 
 import time
@@ -22,7 +23,7 @@ tasks = {}
 @router.post("/answer", status_code=200, response_model=TaskResponse)
 async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends(validate_user),
                               db: AsyncSession = Depends(get_db)):
-    if question_schema.index not in get_indexes():
+    if question_schema.index not in get_indexes(to_sort=True):
         raise HTTPException(status_code=404, detail="Index not found")
 
     result = await db.execute(
@@ -36,11 +37,10 @@ async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends
 
     def background_task(settings: UserSetting):
         try:
-            answer = asyncio.run(get_answer(index_name=question_schema.index,
+            indexesname2ids = get_indexes_names2ids()
+            answer = asyncio.run(get_answer(vector_store_id=indexesname2ids[question_schema.index],
                                             question=question_schema.question,
                                             temp=settings.temperature,
-                                            faiss_search=settings.count_vector,
-                                            bm_search=settings.count_fulltext,
                                             prompt=settings.prompt))
             tasks[task_id] = answer
         except Exception as e:

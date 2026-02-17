@@ -5,9 +5,9 @@ import time
 from fastapi import APIRouter, Depends, UploadFile, HTTPException
 
 from app.core.dependencies import validate_user, validate_admin_user
-from rag import get_files as get_files_from_rag
-from rag import get_indexes as get_indexes_from_rag
-from rag import create_index as create_index_from_rag
+from rag.get_files import get_files_names2ids, get_files as get_files_from_rag
+from rag.get_indexes import get_indexes as get_indexes_from_rag
+from rag.create_index import create_index as create_index_from_rag
 from ocr import ApiOCR
 from app.db.schemas import FilesResponse, IndexesResponse, OcrStatusResponse, IndexRequest, \
     StatusResponse
@@ -20,7 +20,7 @@ index_task = False
 
 @router.get("/indexes", status_code=200, response_model=IndexesResponse)
 async def get_indexes():
-    return IndexesResponse(indexes=get_indexes_from_rag())
+    return IndexesResponse(indexes=get_indexes_from_rag(to_sort=True))
 
 
 @router.post("/indexes", status_code=200, dependencies=[Depends(validate_admin_user)])
@@ -35,7 +35,12 @@ async def create_index(index_request: IndexRequest):
     def background_task():
         global index_task
         try:
-            create_index_from_rag(index_request.name, index_request.file_names)
+            index_request_file_ids = []
+            filenames2ids = get_files_names2ids()
+            for i in index_request.file_names:
+                index_request_file_ids.append(filenames2ids[i])
+
+            create_index_from_rag(index_request.name, index_request_file_ids)
             index_task = False
         except Exception as e:
             print(e)
@@ -58,7 +63,7 @@ async def get_index_status():
 @router.get("/files", status_code=200, response_model=FilesResponse,
             dependencies=[Depends(validate_admin_user)])
 async def get_files():
-    return FilesResponse(files=get_files_from_rag())
+    return FilesResponse(files=get_files_from_rag(to_sort=True))
 
 
 @router.post("/files", dependencies=[Depends(validate_admin_user)])
