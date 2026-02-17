@@ -3,6 +3,7 @@ package-mode = false
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.19.1"
+boto3-stubs = {extras = ["lambda", "s3"], version = "^1.42.50"}
 
 [project]
 name = "api"
