@@ -22,7 +22,7 @@ tasks = {}
 
 @router.post("/answer", status_code=200, response_model=TaskResponse)
 async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends(validate_user),
-                              db: AsyncSession = Depends(get_db)):
+                              db: AsyncSession = Depends(get_db)) -> TaskResponse:
     if question_schema.index not in get_indexes(to_sort=True):
         raise HTTPException(status_code=404, detail="Index not found")
 
@@ -35,7 +35,7 @@ async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends
     task_id = str(time.time())
     tasks[task_id] = False
 
-    def background_task(settings: UserSetting):
+    def background_task(settings: UserSetting) -> None:
         try:
             indexesname2ids = get_indexes_names2ids()
             answer = asyncio.run(get_answer(vector_store_id=indexesname2ids[question_schema.index],
@@ -53,7 +53,7 @@ async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends
 
 
 @router.get("/answer/status/{task_id}", response_model=StatusResponse)
-async def check_status(task_id: str):
+async def check_status(task_id: str) -> StatusResponse:
     if task_id not in tasks:
         raise HTTPException(status_code=404, detail="Task not found")
     if not tasks[task_id]:

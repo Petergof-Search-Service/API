@@ -15,7 +15,7 @@ from app.db.models.user import get_user, create_user, User
 router = APIRouter()
 
 
-def generate_tokens(user_email) -> Token:
+def generate_tokens(user_email: str) -> Token:
     access_token_expires = timedelta(minutes=int(settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     access_token = create_token(data={"sub": user_email, "type": "access"},
                                 expires_delta=access_token_expires)
@@ -27,7 +27,7 @@ def generate_tokens(user_email) -> Token:
 
 # Feature: make refresh token unavailable after use
 @router.post("/refresh", response_model=Token)
-async def login_for_access_token(
+async def refresh_token(
         refresh_token: str = Header(),
         db: AsyncSession = Depends(get_db)) -> Token:
     payload = verify_refresh_token(refresh_token)
@@ -73,7 +73,7 @@ async def login_for_access_token(
 
 
 @router.post("/register", response_model=Token)
-async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)) -> Token:
     existing_user = await get_user(db, user.email)
     if existing_user:
         raise HTTPException(status_code=400, detail="User already registered")
@@ -83,5 +83,5 @@ async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserGet)
-async def read_users_me(user: User = Depends(validate_user)):
+async def read_users_me(user: User = Depends(validate_user)) -> UserGet:
     return UserGet(email=user.email, is_admin=user.is_admin if user.is_admin is not None else False)

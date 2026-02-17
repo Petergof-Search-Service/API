@@ -24,7 +24,7 @@ class UserSetting(Base):
 
     user = relationship("User", back_populates="settings")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<UserSetting(prompt={self.prompt}, temperature={self.temperature}, count_vector={self.count_vector}, count_fulltext={self.count_fulltext})>"
 
 

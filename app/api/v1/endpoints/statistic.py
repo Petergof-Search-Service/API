@@ -10,6 +10,6 @@ router = APIRouter(dependencies=[Depends(validate_user)])
 
 
 @router.post("/review", status_code=200)
-async def push_review(review: Review, db: AsyncSession = Depends(get_db)):
+async def push_review(review: Review, db: AsyncSession = Depends(get_db)) -> int:
     await create_review(db, review)
     return 200

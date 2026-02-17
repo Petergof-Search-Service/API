@@ -1,13 +1,14 @@
 [tool.poetry]
 package-mode = false
 
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.19.1"
+
 [project]
 name = "api"
 version = "0.1.0"
 description = "API for petergof science rag"
-authors = [
-    {name = "andrey-blight",email = "kizhinov05@gmail.com"}
-]
+authors = [{ name = "andrey-blight", email = "kizhinov05@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
 dependencies = [
@@ -24,10 +25,25 @@ dependencies = [
     "greenlet (>=3.3.1,<4.0.0)",
     "openai (>=2.17.0)",
     "alembic (>=1.18.4,<2.0.0)",
-    "psycopg2-binary (>=2.9.11,<3.0.0)"
+    "psycopg2-binary (>=2.9.11,<3.0.0)",
+    "pydantic-settings (>=2.13.0,<3.0.0)",
 ]
 
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
