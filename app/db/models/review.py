@@ -26,7 +26,7 @@ async def create_review(db: AsyncSession, review: ReviewCreate) -> Review:
         question=review.question,
         model_answer=review.model_answer,
         is_ok=review.is_ok,
-        corrected_answer=review.correct_answer
+        corrected_answer=review.correct_answer,
     )
     db.add(db_item)
     await db.commit()

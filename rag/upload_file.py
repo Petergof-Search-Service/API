@@ -1,48 +1,33 @@
-import os
-import io
-import re
-import json
 import asyncio
-from typing import Any, Dict, List, Tuple, Optional
+import io
+import json
+import os
+import re
+from typing import Any, Dict, List, Tuple, cast
 
 import boto3
 import openai
-from dotenv import load_dotenv
+from mypy_boto3_s3 import S3Client
 from openai import AsyncOpenAI
 
-load_dotenv()
-
-YANDEX_API_KEY = os.getenv("YC_API_KEY")
-YANDEX_FOLDER_ID = os.getenv("YC_FOLDER_ID")
-
-ACCESS_KEY = os.getenv("ACCESS_KEY")
-SECRET_KEY = os.getenv("SECRET_KEY")
-BUCKET_NAME = "markup-baket"
-S3_ENDPOINT_URL = "https://storage.yandexcloud.net"
-
-CHUNKS_PATH = "data/chunks"
-MAX_CHUNK_LEN = 8000
-
-PAGE_MARK_RE = re.compile(r"\[PAGE\s+(\d+)\]")
-PAGE_MARK_REMOVE_RE = re.compile(r"\s*\[PAGE\s+\d+\]\s*\n?")
+from .config import settings
 
 
-
-def make_s3_client():
+def make_s3_client() -> S3Client:
     return boto3.client(
         "s3",
-        endpoint_url=S3_ENDPOINT_URL,
-        aws_access_key_id=ACCESS_KEY,
-        aws_secret_access_key=SECRET_KEY,
+        endpoint_url=settings.RAG_S3_ENDPOINT_URL,
+        aws_access_key_id=settings.RAG_ACCESS_KEY,
+        aws_secret_access_key=settings.RAG_SECRET_KEY,
     )
 
 
-async def s3_get_bytes(s3_client, key: str):
-    def _sync():
-        obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
+async def s3_get_bytes(s3_client: S3Client, key: str) -> bytes:
+    def _sync() -> bytes:
+        obj = s3_client.get_object(Bucket=settings.RAG_BUCKET_NAME, Key=key)
         return obj["Body"].read()
-    return await asyncio.to_thread(_sync)
 
+    return await asyncio.to_thread(_sync)
 
 
 def parse_pages_from_bytes(data: bytes, key: str) -> List[Dict[str, Any]]:
@@ -52,7 +37,9 @@ def parse_pages_from_bytes(data: bytes, key: str) -> List[Dict[str, Any]]:
         raise ValueError(f"Не удалось распарсить JSON из {key}: {e}")
 
     if not (isinstance(obj, dict) and isinstance(obj.get("data"), list)):
-        raise ValueError(f"Неожиданный формат файла {key}. Ожидал dict с полем 'data' (list).")
+        raise ValueError(
+            f"Неожиданный формат файла {key}. Ожидал dict с полем 'data' (list)."
+        )
 
     merged: List[Dict[str, Any]] = []
 
@@ -80,10 +67,12 @@ def parse_pages_from_bytes(data: bytes, key: str) -> List[Dict[str, Any]]:
     for p in merged:
         by_page.setdefault(p["page"], []).append(p["text"])
 
-    pages = [{"page": page, "text": "\n".join(parts).strip()} for page, parts in by_page.items()]
-    pages.sort(key=lambda x: x["page"])
+    pages = [
+        {"page": page, "text": "\n".join(parts).strip()}
+        for page, parts in by_page.items()
+    ]
+    pages.sort(key=lambda x: cast(int, x["page"]))
     return pages
-
 
 
 def build_marked_text(pages: List[Dict[str, Any]]) -> str:
@@ -97,7 +86,7 @@ def build_marked_text(pages: List[Dict[str, Any]]) -> str:
 
 def _extract_page_markers_with_pos(text: str) -> List[Tuple[int, int]]:
     markers: List[Tuple[int, int]] = []
-    for m in PAGE_MARK_RE.finditer(text):
+    for m in settings.RAG_PAGE_MARK_RE.finditer(text):
         markers.append((m.start(), int(m.group(1))))
     return markers
 
@@ -134,7 +123,7 @@ def _pages_header(pages: List[int]) -> str:
 
 
 def _strip_page_markers(fragment: str) -> str:
-    cleaned = PAGE_MARK_REMOVE_RE.sub("\n", fragment)
+    cleaned = settings.RAG_PAGE_MARK_REMOVE_RE.sub("\n", fragment)
     # нормализуем лишние пустые строки
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
@@ -152,7 +141,7 @@ def chunk_text_window_overlap(
     if overlap_chars >= window_chars:
         raise ValueError("overlap_chars должен быть < window_chars")
 
-    window_chars = min(window_chars, MAX_CHUNK_LEN)
+    window_chars = min(window_chars, settings.RAG_MAX_CHUNK_LEN)
     step = window_chars - overlap_chars
 
     markers = _extract_page_markers_with_pos(marked_text)
@@ -173,9 +162,9 @@ def chunk_text_window_overlap(
 
             body = f"{header}\n{cleaned_fragment}".strip()
 
-            if len(body) > MAX_CHUNK_LEN:
-                allowed = MAX_CHUNK_LEN - len(header) - 1
-                trimmed = cleaned_fragment[:max(0, allowed)].rstrip()
+            if len(body) > settings.RAG_MAX_CHUNK_LEN:
+                allowed = settings.RAG_MAX_CHUNK_LEN - len(header) - 1
+                trimmed = cleaned_fragment[: max(0, allowed)].rstrip()
                 body = f"{header}\n{trimmed}".strip()
 
             chunks.append({"body": body})
@@ -188,7 +177,9 @@ def chunk_text_window_overlap(
 
 
 def chunks_to_jsonl_bytes(chunks: List[Dict[str, str]]) -> bytes:
-    return (("\n".join(json.dumps(c, ensure_ascii=False) for c in chunks)) + "\n").encode("utf-8")
+    return (
+        ("\n".join(json.dumps(c, ensure_ascii=False) for c in chunks)) + "\n"
+    ).encode("utf-8")
 
 
 def make_upload_name(original_filename: str) -> str:
@@ -215,7 +206,7 @@ async def upload_chunks_jsonl_bytes(
         ),
         extra_body={"format": "chunks"},
     )
-    return f.id
+    return cast(str, f.id)
 
 
 async def upload_file(
@@ -223,13 +214,17 @@ async def upload_file(
     window_chars: int = 800,
     overlap_chars: int = 400,
 ) -> Dict[str, Any]:
-    s3_key = filename if filename.startswith(CHUNKS_PATH.rstrip("/") + "/") else f"{CHUNKS_PATH.rstrip('/')}/{filename}"
+    s3_key = (
+        filename
+        if filename.startswith(settings.RAG_CHUNKS_PATH.rstrip("/") + "/")
+        else f"{settings.RAG_CHUNKS_PATH.rstrip('/')}/{filename}"
+    )
 
     s3_client = make_s3_client()
     client = AsyncOpenAI(
-        api_key=YANDEX_API_KEY,
+        api_key=settings.RAG_YANDEX_API_KEY,
         base_url="https://ai.api.cloud.yandex.net/v1",
-        project=YANDEX_FOLDER_ID,
+        project=settings.RAG_YANDEX_FOLDER_ID,
     )
 
     raw = await s3_get_bytes(s3_client, s3_key)

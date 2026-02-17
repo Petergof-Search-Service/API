@@ -34,7 +34,9 @@ async def validate_user(
     )
 
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
 
         email = payload.get("sub")
         if not isinstance(email, str) or not email:
@@ -67,5 +69,7 @@ async def validate_admin_user(user: Annotated[User, Depends(validate_user)]) -> 
         HTTPException: If user is not admin
     """
     if not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
     return user

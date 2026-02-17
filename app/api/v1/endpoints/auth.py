@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordRequestForm
@@ -17,19 +17,23 @@ router = APIRouter()
 
 def generate_tokens(user_email: str) -> Token:
     access_token_expires = timedelta(minutes=int(settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    access_token = create_token(data={"sub": user_email, "type": "access"},
-                                expires_delta=access_token_expires)
+    access_token = create_token(
+        data={"sub": user_email, "type": "access"}, expires_delta=access_token_expires
+    )
     refresh_token_expires = timedelta(days=int(settings.REFRESH_TOKEN_EXPIRE_DAYS))
-    refresh_token = create_token(data={"sub": user_email, "type": "refresh"},
-                                 expires_delta=refresh_token_expires)
-    return Token(access_token=access_token, refresh_token=refresh_token, token_type="bearer")
+    refresh_token = create_token(
+        data={"sub": user_email, "type": "refresh"}, expires_delta=refresh_token_expires
+    )
+    return Token(
+        access_token=access_token, refresh_token=refresh_token, token_type="bearer"
+    )
 
 
 # Feature: make refresh token unavailable after use
 @router.post("/refresh", response_model=Token)
 async def refresh_token(
-        refresh_token: str = Header(),
-        db: AsyncSession = Depends(get_db)) -> Token:
+    refresh_token: str = Header(), db: AsyncSession = Depends(get_db)
+) -> Token:
     payload = verify_refresh_token(refresh_token)
 
     email = payload.get("sub")
@@ -52,8 +56,9 @@ async def refresh_token(
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
-        form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-        db: AsyncSession = Depends(get_db)) -> Token:
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: AsyncSession = Depends(get_db),
+) -> Token:
     user = await get_user(db, form_data.username)
     if not user:
         raise HTTPException(
@@ -61,7 +66,7 @@ async def login_for_access_token(
             detail="Incorrect email",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    user = user[0]
+    user = cast(User, user[0])
     if user.hashed_password != get_hash(form_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -84,4 +89,6 @@ async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)) ->
 
 @router.get("/me", response_model=UserGet)
 async def read_users_me(user: User = Depends(validate_user)) -> UserGet:
-    return UserGet(email=user.email, is_admin=user.is_admin if user.is_admin is not None else False)
+    return UserGet(
+        email=user.email, is_admin=user.is_admin if user.is_admin is not None else False
+    )

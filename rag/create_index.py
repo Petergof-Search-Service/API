@@ -1,29 +1,25 @@
-import os
 import asyncio
-from dotenv import load_dotenv
+from typing import Any
 from openai import AsyncOpenAI
-
-load_dotenv()
-YANDEX_API_KEY = os.getenv("YC_API_KEY")
-YANDEX_FOLDER_ID = os.getenv("YC_FOLDER_ID")
+from .config import settings
 
 
-async def create_index(name, input_file_ids):
+async def create_index(name: str, input_file_ids: list[str]) -> dict[str, Any]:
     client = AsyncOpenAI(
-        api_key=YANDEX_API_KEY,
+        api_key=settings.RAG_YANDEX_API_KEY,
         base_url="https://ai.api.cloud.yandex.net/v1",
-        project=YANDEX_FOLDER_ID,
+        project=settings.RAG_YANDEX_FOLDER_ID,
     )
 
     print("Создаем поисковый индекс...")
-    
+
     vector_store = await client.vector_stores.create(
         name=name,
         # metadata={"key": "value"},
         expires_after={"anchor": "last_active_at", "days": 30},
         file_ids=input_file_ids,
     )
-    
+
     vector_store_id = vector_store.id
     print("Vector store создан:", vector_store_id)
 
@@ -38,9 +34,9 @@ async def create_index(name, input_file_ids):
             break
 
         await asyncio.sleep(3)
-    
+
     return {
-        'name': name,
-        'vector_store_id': vector_store_id,
-        'status': vector_store.status
+        "name": name,
+        "vector_store_id": vector_store_id,
+        "status": vector_store.status,
     }

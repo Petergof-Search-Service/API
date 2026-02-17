@@ -47,7 +47,10 @@ class ApiOCR:
             """
             try:
                 result = subprocess.run(
-                    ["yc", "iam", "create-token"], capture_output=True, text=True, check=True
+                    ["yc", "iam", "create-token"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
                 )
                 return result.stdout.strip()
             except subprocess.CalledProcessError as e:
@@ -112,7 +115,9 @@ class ApiOCR:
                 settings.OCR_BUCKET_NAME,
                 os.path.join("started_pdf", os.path.basename(pdf_name_txt)),
             )
-            print(f"Файл {pdf_name_txt} загружен в бакет {settings.OCR_BUCKET_NAME} / started_pdf")
+            print(
+                f"Файл {pdf_name_txt} загружен в бакет {settings.OCR_BUCKET_NAME} / started_pdf"
+            )
             await upload_file(pdf_name_txt.split("/")[-1])
         except Exception as e:
             print(f"Error uploading file: {e}")

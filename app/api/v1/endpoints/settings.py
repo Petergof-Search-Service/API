@@ -13,8 +13,11 @@ router = APIRouter(dependencies=[Depends(validate_user)])
 
 
 @router.post("/settings", status_code=200, response_model=SettingModel)
-async def update_settings(new_settings: SettingModel, user: User = Depends(validate_user),
-                          db: AsyncSession = Depends(get_db)) -> SettingModel:
+async def update_settings(
+    new_settings: SettingModel,
+    user: User = Depends(validate_user),
+    db: AsyncSession = Depends(get_db),
+) -> SettingModel:
     result = await db.execute(
         select(User).options(joinedload(User.settings)).where(User.id == user.id)
     )
@@ -25,7 +28,9 @@ async def update_settings(new_settings: SettingModel, user: User = Depends(valid
 
 
 @router.get("/settings", status_code=200, response_model=SettingModel)
-async def get_settings(user: User = Depends(validate_user), db: AsyncSession = Depends(get_db)) -> SettingModel:
+async def get_settings(
+    user: User = Depends(validate_user), db: AsyncSession = Depends(get_db)
+) -> SettingModel:
     result = await db.execute(
         select(User).options(joinedload(User.settings)).where(User.id == user.id)
     )

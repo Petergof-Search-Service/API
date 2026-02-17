@@ -4,6 +4,7 @@ package-mode = false
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.19.1"
 boto3-stubs = {extras = ["lambda", "s3"], version = "^1.42.50"}
+pre-commit = "^4.5.1"
 
 [project]
 name = "api"
@@ -42,6 +43,7 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
+exclude = ["alembic"]
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

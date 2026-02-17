@@ -25,7 +25,10 @@ class User(Base):
     )
 
     settings: Mapped["UserSetting"] = relationship(
-        "UserSetting", uselist=False, back_populates="user", cascade="all, delete-orphan"
+        "UserSetting",
+        uselist=False,
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
@@ -34,7 +37,9 @@ class User(Base):
 
 async def create_user(db: AsyncSession, user_db: UserCreate) -> User:
     db_item = User(
-        email=user_db.email, hashed_password=get_hash(user_db.password), settings=UserSetting()
+        email=user_db.email,
+        hashed_password=get_hash(user_db.password),
+        settings=UserSetting(),
     )
     db.add(db_item)
     await db.commit()

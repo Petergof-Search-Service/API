@@ -22,9 +22,12 @@ tasks: dict[str, bool | tuple[str, LiteralString] | str] = {}
 
 
 @router.post("/answer", status_code=200, response_model=TaskResponse)
-async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends(validate_user),
-                              db: AsyncSession = Depends(get_db)) -> TaskResponse:
-    if question_schema.index not in get_indexes(to_sort=True):
+async def get_answer_from_rag(
+    question_schema: RagQuestion,
+    user: User = Depends(validate_user),
+    db: AsyncSession = Depends(get_db),
+) -> TaskResponse:
+    if question_schema.index not in (await get_indexes(to_sort=True)):
         raise HTTPException(status_code=404, detail="Index not found")
 
     result = await db.execute(
@@ -38,11 +41,15 @@ async def get_answer_from_rag(question_schema: RagQuestion, user: User = Depends
 
     def background_task(settings: UserSetting) -> None:
         try:
-            indexesname2ids = get_indexes_names2ids()
-            answer = asyncio.run(get_answer(vector_store_id=indexesname2ids[question_schema.index],
-                                            question=question_schema.question,
-                                            temp=settings.temperature,
-                                            prompt=settings.prompt))
+            indexesname2ids = asyncio.run(get_indexes_names2ids())
+            answer = asyncio.run(
+                get_answer(
+                    vector_store_id=indexesname2ids[question_schema.index],
+                    question=question_schema.question,
+                    temp=settings.temperature,
+                    prompt=settings.prompt,
+                )
+            )
             tasks[task_id] = answer
         except Exception as e:
             tasks[task_id] = f"error: {str(e)}"
@@ -62,9 +69,8 @@ async def check_status(task_id: str) -> StatusResponse:
     response = tasks[task_id]
     tasks.pop(task_id)
     if isinstance(response, tuple):
-        return StatusResponse(status=response[0] + '\n\n\n\n\n\n\n\n' + response[1])
+        return StatusResponse(status=response[0] + "\n\n\n\n\n\n\n\n" + response[1])
     elif isinstance(response, str):
         return StatusResponse(status=response)
     else:
         raise HTTPException(status_code=500, detail="Unknown response type")
-

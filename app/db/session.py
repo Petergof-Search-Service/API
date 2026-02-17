@@ -28,15 +28,15 @@ AsyncSessionLocal = async_sessionmaker(
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for getting async database sessions.
-    
+
     Yields:
         AsyncSession: Database session
-        
+
     Example:
         ```python
         from fastapi import Depends
         from app.db.session import get_db
-        
+
         @app.get("/users")
         async def get_users(db: AsyncSession = Depends(get_db)):
             result = await db.execute(select(User))
