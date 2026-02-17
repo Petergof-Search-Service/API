@@ -1,13 +1,17 @@
+from __future__ import annotations
+
 import asyncio
 import io
 import json
 import os
 import re
-from typing import Any, Dict, List, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, cast
 
 import boto3
 import openai
-from mypy_boto3_s3 import S3Client
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 from openai import AsyncOpenAI
 
 from .config import settings
