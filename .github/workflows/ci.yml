@@ -11,9 +11,27 @@ env:
   INFRA_REPO: "Infra"
 
 jobs:
+  pre-commit:
+    name: Pre-commit checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+
   build-and-push:
     name: Build and push image (prod)
     runs-on: ubuntu-latest
+    needs: pre-commit
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
@@ -107,9 +125,23 @@ jobs:
           echo "Timeout waiting for Infra workflow"
           exit 1
 
+      - name: Trigger Infra deploy (test) with latest
+        env:
+          INFRA_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          API_URL: "https://api.github.com/repos/${{ github.repository_owner }}/${{ env.INFRA_REPO }}"
+        run: |
+          IMAGE_FULL="${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:latest"
+          curl -sSf -X POST \
+            -H "Authorization: token ${INFRA_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/dispatches" \
+            -d "{\"event_type\":\"api-test-updated\",\"client_payload\":{\"image\":\"${IMAGE_FULL}\"}}"
+          echo "Dispatched test deploy with image: ${IMAGE_FULL}"
+
   build-and-push-test:
     name: Build and push image (test)
     runs-on: ubuntu-latest
+    needs: pre-commit
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
