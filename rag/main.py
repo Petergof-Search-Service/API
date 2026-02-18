@@ -6,8 +6,8 @@ async def get_answer(
     question: str,
     vector_store_id: str,
     temp: float = 0.2,
-    k: int = 5,
-    score_threshold: float = 0.8,
+    k: int = 30,
+    score_threshold: float = 0.0,
     prompt: str | None = None,
 ) -> tuple[str, str] | str:
     if prompt is None:
