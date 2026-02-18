@@ -215,8 +215,8 @@ async def upload_chunks_jsonl_bytes(
 
 async def upload_file(
     filename: str,
-    window_chars: int = 800,
-    overlap_chars: int = 400,
+    window_chars: int = 400,
+    overlap_chars: int = 50,
 ) -> Dict[str, Any]:
     s3_key = (
         filename
