@@ -1,16 +1,15 @@
-from .rag import TaskResponse, RagQuestion, StatusResponse
-from .tokens import Token
-from .user import UserCreate, UserGet
-from .review import Review
 from .index import (
     FilesResponse,
     IndexesResponse,
-    OcrStatusResponse,
     IndexRequest,
     UploadLinkRequest,
     UploadLinkResponse,
 )
+from .rag import RagQuestion, StatusResponse, TaskResponse
+from .review import Review
 from .settings import SettingModel
+from .tokens import Token
+from .user import UserCreate, UserGet
 
 __all__ = [
     "TaskResponse",
@@ -22,7 +21,6 @@ __all__ = [
     "Review",
     "FilesResponse",
     "IndexesResponse",
-    "OcrStatusResponse",
     "IndexRequest",
     "UploadLinkRequest",
     "UploadLinkResponse",

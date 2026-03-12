@@ -9,19 +9,18 @@ from app.db.schemas import (
     FilesResponse,
     IndexesResponse,
     IndexRequest,
-    OcrStatusResponse,
     StatusResponse,
     UploadLinkRequest,
     UploadLinkResponse,
 )
-from ocr import ApiOCR
+
 from rag.create_index import create_index as create_index_from_rag
 from rag.get_files import get_files as get_files_from_rag
 from rag.get_files import get_files_names2ids
 from rag.get_indexes import get_indexes as get_indexes_from_rag
 
 router = APIRouter(dependencies=[Depends(validate_user)])
-ocr = ApiOCR()
+
 
 index_task = False
 
@@ -99,13 +98,3 @@ async def get_upload_link(body: UploadLinkRequest) -> UploadLinkResponse:
         s3_key=s3_key,
         expires_in=PRESIGNED_EXPIRES_IN,
     )
-
-
-# TODO: remove all ocr in another repo
-@router.get(
-    "/files/status",
-    dependencies=[Depends(validate_admin_user)],
-    response_model=OcrStatusResponse,
-)
-async def get_ocr_status() -> OcrStatusResponse:
-    return OcrStatusResponse(is_running=await ocr.is_running())
