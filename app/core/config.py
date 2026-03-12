@@ -14,5 +14,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
 
+    S3_BUCKET_NAME: str
+    S3_ACCESS_KEY: str
+    S3_SECRET_KEY: str
+    S3_ENDPOINT_URL: str = "https://storage.yandexcloud.net"
+
 
 settings = Settings()
