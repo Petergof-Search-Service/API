@@ -1,23 +1,26 @@
 import asyncio
 import threading
 
-from fastapi import APIRouter, Depends, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.dependencies import validate_user, validate_admin_user
-from rag.get_files import get_files_names2ids, get_files as get_files_from_rag
-from rag.get_indexes import get_indexes as get_indexes_from_rag
-from rag.create_index import create_index as create_index_from_rag
-from ocr import ApiOCR
+from app.core.dependencies import validate_admin_user, validate_user
+from app.core.s3 import PRESIGNED_EXPIRES_IN, generate_upload_presigned_url
 from app.db.schemas import (
     FilesResponse,
     IndexesResponse,
-    OcrStatusResponse,
     IndexRequest,
     StatusResponse,
+    UploadLinkRequest,
+    UploadLinkResponse,
 )
 
+from rag.create_index import create_index as create_index_from_rag
+from rag.get_files import get_files as get_files_from_rag
+from rag.get_files import get_files_names2ids
+from rag.get_indexes import get_indexes as get_indexes_from_rag
+
 router = APIRouter(dependencies=[Depends(validate_user)])
-ocr = ApiOCR()
+
 
 index_task = False
 
@@ -78,24 +81,20 @@ async def get_files() -> FilesResponse:
     return FilesResponse(files=await get_files_from_rag(to_sort=True))
 
 
-@router.post("/files", dependencies=[Depends(validate_admin_user)])
-async def push_to_ocr(file: UploadFile) -> int:
-    if file.filename in (await get_files_from_rag(to_sort=True)):
-        raise HTTPException(status_code=409, detail="File already uploaded")
-    if await ocr.is_running():
-        raise HTTPException(status_code=409, detail="OCR already running")
-    content = await file.read()
-
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="File name is required")
-    asyncio.create_task(ocr.upload_pdf(content, file.filename[:-4]))
-    return 200
-
-
-@router.get(
-    "/files/status",
+@router.post(
+    "/files/upload-link",
+    status_code=200,
+    response_model=UploadLinkResponse,
     dependencies=[Depends(validate_admin_user)],
-    response_model=OcrStatusResponse,
 )
-async def get_ocr_status() -> OcrStatusResponse:
-    return OcrStatusResponse(is_running=await ocr.is_running())
+async def get_upload_link(body: UploadLinkRequest) -> UploadLinkResponse:
+    """Возвращает presigned URL для загрузки файла в S3 (фронт загружает по этой ссылке PUT)."""
+    try:
+        upload_url, s3_key = generate_upload_presigned_url(body.filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return UploadLinkResponse(
+        upload_url=upload_url,
+        s3_key=s3_key,
+        expires_in=PRESIGNED_EXPIRES_IN,
+    )

@@ -18,5 +18,11 @@ class RagQuestion(BaseModel):
     question: str
 
 
-class OcrStatusResponse(BaseModel):
-    is_running: bool
+class UploadLinkRequest(BaseModel):
+    filename: str
+
+
+class UploadLinkResponse(BaseModel):
+    upload_url: str
+    s3_key: str
+    expires_in: int
