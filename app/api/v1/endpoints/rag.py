@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import time
 from typing import LiteralString
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,22 +9,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.dependencies import validate_user
-from app.db.models import User, UserSetting
+from app.db.models import User, UserSetting, create_users_activity
+from app.db.schemas import RagQuestion, StatusResponse, TaskResponse
 from app.db.session import get_db
 from rag.get_indexes import get_indexes, get_indexes_names2ids
 from rag.main import get_answer
-from app.db.schemas import TaskResponse, RagQuestion, StatusResponse
-
-import time
 
 router = APIRouter(dependencies=[Depends(validate_user)])
 
 tasks: dict[str, bool | tuple[str, LiteralString] | str] = {}
 
 
+async def update_users_activity(
+    user: User = Depends(validate_user), db: AsyncSession = Depends(get_db)
+) -> None:
+    await create_users_activity(db, user)
+
+
 @router.post("/answer", status_code=200, response_model=TaskResponse)
 async def get_answer_from_rag(
     question_schema: RagQuestion,
+    _: None = Depends(update_users_activity),
     user: User = Depends(validate_user),
     db: AsyncSession = Depends(get_db),
 ) -> TaskResponse:
