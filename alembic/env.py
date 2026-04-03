@@ -8,6 +8,8 @@ from sqlalchemy import create_engine, engine_from_config, pool
 from alembic import context
 from app.db import Base
 
+from app.db import models  # noqa: F401
+
 load_dotenv()
 
 # this is the Alembic Config object, which provides
