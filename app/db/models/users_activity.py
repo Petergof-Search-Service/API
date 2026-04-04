@@ -14,7 +14,7 @@ class UsersActivity(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), unique=True, nullable=False
+        Integer, ForeignKey("users.id"), nullable=False
     )
 
     created_at: Mapped[datetime] = mapped_column(
