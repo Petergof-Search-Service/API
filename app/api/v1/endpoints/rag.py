@@ -1,6 +1,3 @@
-import asyncio
-import threading
-import time
 from typing import LiteralString
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.dependencies import validate_user
-from app.db.models import User, UserSetting, create_users_activity
-from app.db.schemas import RagQuestion, StatusResponse, TaskResponse
+from app.db.models import User, create_users_activity
+from app.db.schemas import AnswerResponse, RagQuestion
 from app.db.session import get_db
 from rag.get_indexes import get_indexes, get_indexes_names2ids
 from rag.main import get_answer
@@ -26,57 +23,29 @@ async def update_users_activity(
     await create_users_activity(db, user)
 
 
-@router.post("/answer", status_code=200, response_model=TaskResponse)
+@router.post("/answer", status_code=200, response_model=AnswerResponse)
 async def get_answer_from_rag(
     question_schema: RagQuestion,
     _: None = Depends(update_users_activity),
     user: User = Depends(validate_user),
     db: AsyncSession = Depends(get_db),
-) -> TaskResponse:
-    if question_schema.index not in (await get_indexes(to_sort=True)):
+) -> AnswerResponse:
+    indexes = await get_indexes(to_sort=True)
+    if question_schema.index not in indexes:
         raise HTTPException(status_code=404, detail="Index not found")
 
     result = await db.execute(
         select(User).options(joinedload(User.settings)).where(User.id == user.id)
     )
     user_with_settings = result.scalar_one()
-    user_settings = user_with_settings.settings
+    settings = user_with_settings.settings
 
-    task_id = str(time.time())
-    tasks[task_id] = False
+    indexesname2ids = await get_indexes_names2ids()
+    answer, context = await get_answer(
+        vector_store_id=indexesname2ids[question_schema.index],
+        question=question_schema.question,
+        temp=settings.temperature,
+        prompt=settings.prompt,
+    )
 
-    def background_task(settings: UserSetting) -> None:
-        try:
-            indexesname2ids = asyncio.run(get_indexes_names2ids())
-            answer = asyncio.run(
-                get_answer(
-                    vector_store_id=indexesname2ids[question_schema.index],
-                    question=question_schema.question,
-                    temp=settings.temperature,
-                    prompt=settings.prompt,
-                )
-            )
-            tasks[task_id] = answer
-        except Exception as e:
-            tasks[task_id] = f"error: {str(e)}"
-
-    thread = threading.Thread(target=background_task, args=(user_settings,))
-    thread.start()
-
-    return TaskResponse(task_id=task_id)
-
-
-@router.get("/answer/status/{task_id}", response_model=StatusResponse)
-async def check_status(task_id: str) -> StatusResponse:
-    if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="Task not found")
-    if not tasks[task_id]:
-        raise HTTPException(status_code=404, detail="Still running")
-    response = tasks[task_id]
-    tasks.pop(task_id)
-    if isinstance(response, tuple):
-        return StatusResponse(status=response[0] + "\n\n\n\n\n\n\n\n" + response[1])
-    elif isinstance(response, str):
-        return StatusResponse(status=response)
-    else:
-        raise HTTPException(status_code=500, detail="Unknown response type")
+    return AnswerResponse(answer=answer, context=context)

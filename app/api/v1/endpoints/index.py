@@ -30,6 +30,7 @@ async def get_indexes() -> IndexesResponse:
     return IndexesResponse(indexes=await get_indexes_from_rag(to_sort=True))
 
 
+# TODO: use grps here, not status
 @router.post("/indexes", status_code=200, dependencies=[Depends(validate_admin_user)])
 async def create_index(index_request: IndexRequest) -> int:
     global index_task

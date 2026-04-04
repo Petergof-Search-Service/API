@@ -9,7 +9,7 @@ async def get_answer(
     k: int = 30,
     score_threshold: float = 0.0,
     prompt: str | None = None,
-) -> tuple[str, str] | str:
+) -> tuple[str, str]:
     if prompt is None:
         prompt = (
             "Ты ассистируешь научного сотрудника музейного комплекса Петергоф.\n"
@@ -44,7 +44,8 @@ async def get_answer(
 
     if not hits:
         return (
-            "В моей базе данных нет релевантной информации (после фильтрации по score)."
+            "В моей базе данных нет релевантной информации (после фильтрации по score).",
+            "",
         )
 
     context_parts = []
