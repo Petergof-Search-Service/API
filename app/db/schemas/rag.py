@@ -1,10 +1,6 @@
 from pydantic import BaseModel
 
 
-class TaskResponse(BaseModel):
-    task_id: str
-
-
 class StatusResponse(BaseModel):
     status: str
 
@@ -12,3 +8,8 @@ class StatusResponse(BaseModel):
 class RagQuestion(BaseModel):
     index: str
     question: str
+
+
+class AnswerResponse(BaseModel):
+    answer: str
+    context: str

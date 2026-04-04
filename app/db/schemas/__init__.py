@@ -5,14 +5,14 @@ from .index import (
     UploadLinkRequest,
     UploadLinkResponse,
 )
-from .rag import RagQuestion, StatusResponse, TaskResponse
+from .rag import AnswerResponse, RagQuestion, StatusResponse
 from .review import Review
 from .settings import SettingModel
 from .tokens import Token
 from .user import UserCreate, UserGet
 
 __all__ = [
-    "TaskResponse",
+    "AnswerResponse",
     "RagQuestion",
     "StatusResponse",
     "Token",
