@@ -14,50 +14,47 @@ def _make_client() -> AsyncOpenAI:
     )
 
 
-def _ensure_dialog_context(dialog_context: dict[str, Any] | None) -> dict[str, Any]:
-    if not dialog_context:
-        return {"summary": "", "recent_turns": []}
+def _iter_valid_turns(
+    dialog_history: list[dict[str, Any]] | None,
+) -> list[dict[str, str]]:
+    if not dialog_history:
+        return []
 
-    summary = dialog_context.get("summary", "")
-    recent_turns = dialog_context.get("recent_turns", [])
+    valid_turns: list[dict[str, str]] = []
 
-    if not isinstance(summary, str):
-        summary = str(summary)
-
-    if not isinstance(recent_turns, list):
-        recent_turns = []
-
-    normalized_turns: list[dict[str, str]] = []
-    for item in recent_turns:
+    for item in dialog_history:
         if not isinstance(item, dict):
             continue
+
         role = item.get("role")
         content = item.get("content")
+
         if role in {"user", "assistant"} and isinstance(content, str) and content.strip():
-            normalized_turns.append({"role": role, "content": content.strip()})
+            valid_turns.append(
+                {
+                    "role": role,
+                    "content": content.strip(),
+                }
+            )
 
-    return {
-        "summary": summary.strip(),
-        "recent_turns": normalized_turns,
-    }
+    return valid_turns
 
 
-def _history_to_text(dialog_context: dict[str, Any]) -> str:
-    parts: list[str] = []
+def _history_to_text(dialog_history: list[dict[str, Any]] | None) -> str:
+    turns = _iter_valid_turns(dialog_history)
+    if not turns:
+        return ""
 
-    summary = dialog_context.get("summary", "").strip()
-    if summary:
-        parts.append(f"СВОДКА ДИАЛОГА:\n{summary}")
+    lines: list[str] = []
+    for t in turns:
+        speaker = "Пользователь" if t["role"] == "user" else "Ассистент"
+        lines.append(f"{speaker}: {t['content']}")
 
-    recent_turns = dialog_context.get("recent_turns", [])
-    if recent_turns:
-        turns_text: list[str] = []
-        for t in recent_turns:
-            speaker = "Пользователь" if t["role"] == "user" else "Ассистент"
-            turns_text.append(f"{speaker}: {t['content']}")
-        parts.append("ПОСЛЕДНИЕ РЕПЛИКИ:\n" + "\n".join(turns_text))
+    return "\n".join(lines).strip()
 
-    return "\n\n".join(parts).strip()
+
+def _has_meaningful_history(dialog_history: list[dict[str, Any]] | None) -> bool:
+    return bool(_iter_valid_turns(dialog_history))
 
 
 async def _model_text(
@@ -76,20 +73,15 @@ async def _model_text(
     return (resp.output_text or "").strip()
 
 
-def _has_meaningful_history(dialog_context: dict[str, Any]) -> bool:
-    summary = dialog_context.get("summary", "").strip()
-    recent_turns = dialog_context.get("recent_turns", [])
-    return bool(summary or recent_turns)
-
 async def _rewrite_query(
     client: AsyncOpenAI,
     question: str,
-    dialog_context: dict[str, Any],
+    dialog_history: list[dict[str, Any]] | None,
 ) -> str:
-    if not _has_meaningful_history(dialog_context):
+    if not _has_meaningful_history(dialog_history):
         return question.strip()
-    
-    history_text = _history_to_text(dialog_context)
+
+    history_text = _history_to_text(dialog_history)
 
     instructions = (
         "Твоя задача — переформулировать новый вопрос пользователя в самодостаточный "
@@ -113,66 +105,8 @@ async def _rewrite_query(
         temperature=0.0,
     )
 
-    return rewritten or question
+    return rewritten or question.strip()
 
-
-async def _summarize_old_history(
-    client: AsyncOpenAI,
-    current_summary: str,
-    old_turns: list[dict[str, str]],
-) -> str:
-    if not old_turns:
-        return current_summary
-
-    old_history_text: list[str] = []
-    for t in old_turns:
-        speaker = "Пользователь" if t["role"] == "user" else "Ассистент"
-        old_history_text.append(f"{speaker}: {t['content']}")
-
-    instructions = (
-        "Сожми историю диалога в короткую, плотную, полезную для дальнейших вопросов сводку.\n"
-        "Сохраняй только факты, сущности, уже обсуждённые объекты, принятые допущения, "
-        "неразрешённые ссылки и важные предпочтения пользователя.\n"
-        "Не добавляй ничего от себя.\n"
-        "Пиши кратко."
-    )
-
-    input_text = (
-        f"ТЕКУЩАЯ СВОДКА:\n{current_summary or '[пусто]'}\n\n"
-        f"СТАРАЯ ЧАСТЬ ДИАЛОГА:\n" + "\n".join(old_history_text)
-    )
-
-    return await _model_text(
-        client=client,
-        instructions=instructions,
-        input_text=input_text,
-        temperature=0.0,
-    )
-
-
-async def _compact_dialog_context(
-    client: AsyncOpenAI,
-    dialog_context: dict[str, Any],
-) -> dict[str, Any]:
-    summary = dialog_context["summary"]
-    recent_turns = dialog_context["recent_turns"]
-
-    if len(recent_turns) <= settings.MAX_RECENT_TURNS:
-        return dialog_context
-
-    kept_turns = recent_turns[-settings.KEPT_RECENT_TURNS:]
-    old_turns = recent_turns[:-settings.KEPT_RECENT_TURNS]
-
-    new_summary = await _summarize_old_history(
-        client=client,
-        current_summary=summary,
-        old_turns=old_turns,
-    )
-
-    return {
-        "summary": new_summary,
-        "recent_turns": kept_turns,
-    }
 
 def _build_context_from_hits(hits: list[Any]) -> str:
     context_parts: list[str] = []
@@ -188,31 +122,15 @@ def _build_context_from_hits(hits: list[Any]) -> str:
     return "\n\n".join(context_parts)
 
 
-def _append_turns(
-    dialog_context: dict[str, Any],
-    question: str,
-    answer: str,
-) -> dict[str, Any]:
-    updated = {
-        "summary": dialog_context["summary"],
-        "recent_turns": list(dialog_context["recent_turns"]),
-    }
-
-    updated["recent_turns"].append({"role": "user", "content": question.strip()})
-    updated["recent_turns"].append({"role": "assistant", "content": answer.strip()})
-
-    return updated
-
-
 async def get_answer(
     question: str,
     vector_store_id: str,
-    dialog_context: dict[str, Any] | None = None,
+    dialog_history: list[dict[str, Any]] | None = None,
     temp: float = 0.2,
     k: int = 30,
     score_threshold: float = 0.0,
     prompt: str | None = None,
-) -> tuple[str, str, dict[str, Any]]:
+) -> tuple[str, str]:
     if prompt is None:
         prompt = (
             "Ты ассистируешь научного сотрудника музейного комплекса Петергоф.\n"
@@ -226,13 +144,10 @@ async def get_answer(
 
     client = _make_client()
 
-    dialog_context = _ensure_dialog_context(dialog_context)
-    dialog_context = await _compact_dialog_context(client, dialog_context)
-
     standalone_question = await _rewrite_query(
         client=client,
         question=question,
-        dialog_context=dialog_context,
+        dialog_history=dialog_history,
     )
 
     s = await client.vector_stores.search(
@@ -249,13 +164,10 @@ async def get_answer(
     hits.sort(key=lambda h: h.score, reverse=True)
     hits = hits[:k]
 
-    history_text = _history_to_text(dialog_context)
+    history_text = _history_to_text(dialog_history)
 
     if not hits:
-        answer = "В моей базе данных нет релевантной информации."
-        updated_context = _append_turns(dialog_context, question, answer)
-        updated_context = await _compact_dialog_context(client, updated_context)
-        return answer, "", updated_context
+        return "В моей базе данных нет релевантной информации.", ""
 
     data_for_rag = _build_context_from_hits(hits)
 
@@ -273,7 +185,4 @@ async def get_answer(
 
     answer = (resp.output_text or "").strip()
 
-    updated_context = _append_turns(dialog_context, question, answer)
-    updated_context = await _compact_dialog_context(client, updated_context)
-
-    return answer, data_for_rag, updated_context
+    return answer, data_for_rag
