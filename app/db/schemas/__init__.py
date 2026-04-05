@@ -5,7 +5,13 @@ from .index import (
     UploadLinkRequest,
     UploadLinkResponse,
 )
-from .rag import AnswerResponse, RagQuestion, StatusResponse
+from .rag import (
+    AnswerResponse,
+    RagQuestion,
+    StatusResponse,
+    HistoryMessage,
+    HistoryResponse,
+)
 from .review import Review
 from .settings import SettingModel
 from .tokens import Token
@@ -25,4 +31,6 @@ __all__ = [
     "UploadLinkRequest",
     "UploadLinkResponse",
     "SettingModel",
+    "HistoryMessage",
+    "HistoryResponse",
 ]

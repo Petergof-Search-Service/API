@@ -6,8 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.dependencies import validate_user
-from app.db.models import User, create_users_activity
-from app.db.schemas import AnswerResponse, RagQuestion
+from app.db.models import (
+    User,
+    create_users_activity,
+    MessageRole,
+    save_message,
+    UserHistory,
+)
+from app.db.schemas import AnswerResponse, RagQuestion, HistoryResponse, HistoryMessage
 from app.db.session import get_db
 from rag.get_indexes import get_indexes, get_indexes_names2ids
 from rag.main import get_answer
@@ -41,6 +47,9 @@ async def get_answer_from_rag(
     settings = user_with_settings.settings
 
     indexesname2ids = await get_indexes_names2ids()
+
+    await save_message(db, user, MessageRole.user, question_schema.question)
+
     answer, context = await get_answer(
         vector_store_id=indexesname2ids[question_schema.index],
         question=question_schema.question,
@@ -48,4 +57,22 @@ async def get_answer_from_rag(
         prompt=settings.prompt,
     )
 
+    await save_message(db, user, MessageRole.assistant, answer)
+
     return AnswerResponse(answer=answer, context=context)
+
+
+@router.get("/history", status_code=200, response_model=HistoryResponse)
+async def get_history(
+    user: User = Depends(validate_user),
+    db: AsyncSession = Depends(get_db),
+) -> HistoryResponse:
+    result = await db.execute(
+        select(UserHistory)
+        .where(UserHistory.user_id == user.id)
+        .order_by(UserHistory.created_at)
+    )
+    messages = result.scalars().all()
+    return HistoryResponse(
+        messages=[HistoryMessage.model_validate(m) for m in messages]
+    )

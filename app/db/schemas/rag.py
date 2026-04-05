@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -13,3 +15,16 @@ class RagQuestion(BaseModel):
 class AnswerResponse(BaseModel):
     answer: str
     context: str
+
+
+class HistoryMessage(BaseModel):
+    id: int
+    role: str
+    content: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class HistoryResponse(BaseModel):
+    messages: list[HistoryMessage]
