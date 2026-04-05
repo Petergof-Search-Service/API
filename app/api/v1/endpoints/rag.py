@@ -57,7 +57,7 @@ async def get_answer_from_rag(
         prompt=settings.prompt,
     )
 
-    await save_message(db, user, MessageRole.assistant, answer)
+    await save_message(db, user, MessageRole.assistant, answer, context=context)
 
     return AnswerResponse(answer=answer, context=context)
 

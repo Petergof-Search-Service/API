@@ -24,6 +24,7 @@ class UserHistory(Base):
     )
     role: Mapped[MessageRole] = mapped_column(Enum(MessageRole), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    context: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
@@ -33,9 +34,13 @@ class UserHistory(Base):
 
 
 async def save_message(
-    db: AsyncSession, user: User, role: MessageRole, content: str
+    db: AsyncSession,
+    user: User,
+    role: MessageRole,
+    content: str,
+    context: str | None = None,
 ) -> UserHistory:
-    db_item = UserHistory(user_id=user.id, role=role, content=content)
+    db_item = UserHistory(user_id=user.id, role=role, content=content, context=context)
     db.add(db_item)
     await db.flush()
     await db.refresh(db_item)
