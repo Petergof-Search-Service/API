@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     RAG_MAX_CHUNK_LEN: int = 8000
     RAG_PAGE_MARK_RE: re.Pattern[str] = re.compile(r"\[PAGE\s+(\d+)\]")
     RAG_PAGE_MARK_REMOVE_RE: re.Pattern[str] = re.compile(r"\s*\[PAGE\s+\d+\]\s*\n?")
+    MAX_RECENT_TURNS: int = 10
+    KEPT_RECENT_TURNS: int = 2
 
 
 settings = Settings()
