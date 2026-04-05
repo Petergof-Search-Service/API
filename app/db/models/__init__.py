@@ -2,6 +2,7 @@ from .review import Review
 from .user import User, create_user
 from .users_activity import UsersActivity, create_users_activity
 from .user_settings import UserSetting, apply_update_settings
+from .user_history import UserHistory, MessageRole, save_message
 
 __all__ = [
     "create_user",
@@ -11,4 +12,7 @@ __all__ = [
     "UsersActivity",
     "Review",
     "create_users_activity",
+    "UserHistory",
+    "MessageRole",
+    "save_message",
 ]
