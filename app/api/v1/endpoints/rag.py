@@ -48,6 +48,16 @@ async def get_answer_from_rag(
 
     indexesname2ids = await get_indexes_names2ids()
 
+    history_result = await db.execute(
+        select(UserHistory)
+        .where(UserHistory.user_id == user.id)
+        .order_by(UserHistory.created_at)
+    )
+    dialog_history = [
+        {"role": row.role, "content": row.content}
+        for row in history_result.scalars().all()
+    ]
+
     await save_message(db, user, MessageRole.user, question_schema.question)
 
     answer, context = await get_answer(
@@ -55,6 +65,7 @@ async def get_answer_from_rag(
         question=question_schema.question,
         temp=settings.temperature,
         prompt=settings.prompt,
+        dialog_history=dialog_history,
     )
 
     await save_message(db, user, MessageRole.assistant, answer, context=context)
