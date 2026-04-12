@@ -29,7 +29,11 @@ def _iter_valid_turns(
         role = item.get("role")
         content = item.get("content")
 
-        if role in {"user", "assistant"} and isinstance(content, str) and content.strip():
+        if (
+            role in {"user", "assistant"}
+            and isinstance(content, str)
+            and content.strip()
+        ):
             valid_turns.append(
                 {
                     "role": role,
