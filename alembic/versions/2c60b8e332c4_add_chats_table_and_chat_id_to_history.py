@@ -33,9 +33,15 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.execute("DELETE FROM users_history")
     op.add_column("users_history", sa.Column("chat_id", sa.Integer(), nullable=False))
     op.create_foreign_key(
-        None, "users_history", "chats", ["chat_id"], ["id"], ondelete="CASCADE"
+        "fk_users_history_chat_id",
+        "users_history",
+        "chats",
+        ["chat_id"],
+        ["id"],
+        ondelete="CASCADE",
     )
     # ### end Alembic commands ###
 
