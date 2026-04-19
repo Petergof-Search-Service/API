@@ -22,6 +22,9 @@ class UserHistory(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False
     )
+    chat_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("chats.id", ondelete="CASCADE"), nullable=False
+    )
     role: Mapped[MessageRole] = mapped_column(Enum(MessageRole), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     context: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -38,9 +41,12 @@ async def save_message(
     user: User,
     role: MessageRole,
     content: str,
+    chat_id: int,
     context: str | None = None,
 ) -> UserHistory:
-    db_item = UserHistory(user_id=user.id, role=role, content=content, context=context)
+    db_item = UserHistory(
+        user_id=user.id, chat_id=chat_id, role=role, content=content, context=context
+    )
     db.add(db_item)
     await db.flush()
     await db.refresh(db_item)
