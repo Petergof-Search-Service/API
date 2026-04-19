@@ -11,6 +11,8 @@ from .rag import (
     StatusResponse,
     HistoryMessage,
     HistoryResponse,
+    ChatResponse,
+    ChatListResponse,
 )
 from .review import Review
 from .settings import SettingModel
@@ -33,4 +35,6 @@ __all__ = [
     "SettingModel",
     "HistoryMessage",
     "HistoryResponse",
+    "ChatResponse",
+    "ChatListResponse",
 ]

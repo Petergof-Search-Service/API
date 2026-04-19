@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
     statistic_router,
     index_router,
     settings_router,
+    chats_router,
 )
 
 api_router = APIRouter()
@@ -18,3 +19,5 @@ api_router.include_router(statistic_router, tags=["Statistic endpoints"])
 api_router.include_router(index_router, tags=["Index endpoints"])
 
 api_router.include_router(settings_router, tags=["Settings endpoints"])
+
+api_router.include_router(chats_router, tags=["Chat endpoints"])

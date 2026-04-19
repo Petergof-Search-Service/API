@@ -8,6 +8,7 @@ from sqlalchemy.orm import joinedload
 from app.core.dependencies import validate_user
 from app.db.models import (
     User,
+    Chat,
     create_users_activity,
     MessageRole,
     save_message,
@@ -40,6 +41,10 @@ async def get_answer_from_rag(
     if question_schema.index not in indexes:
         raise HTTPException(status_code=404, detail="Index not found")
 
+    chat = await db.get(Chat, question_schema.chat_id)
+    if not chat or chat.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
     result = await db.execute(
         select(User).options(joinedload(User.settings)).where(User.id == user.id)
     )
@@ -50,7 +55,10 @@ async def get_answer_from_rag(
 
     history_result = await db.execute(
         select(UserHistory)
-        .where(UserHistory.user_id == user.id)
+        .where(
+            UserHistory.user_id == user.id,
+            UserHistory.chat_id == question_schema.chat_id,
+        )
         .order_by(UserHistory.created_at)
     )
     dialog_history = [
@@ -58,7 +66,17 @@ async def get_answer_from_rag(
         for row in history_result.scalars().all()
     ]
 
-    await save_message(db, user, MessageRole.user, question_schema.question)
+    if chat.title == "Новый чат":
+        chat.title = question_schema.question[:500]
+        await db.flush()
+
+    await save_message(
+        db,
+        user,
+        MessageRole.user,
+        question_schema.question,
+        chat_id=question_schema.chat_id,
+    )
 
     answer, context = await get_answer(
         vector_store_id=indexesname2ids[question_schema.index],
@@ -68,19 +86,32 @@ async def get_answer_from_rag(
         dialog_history=dialog_history,
     )
 
-    await save_message(db, user, MessageRole.assistant, answer, context=context)
+    await save_message(
+        db,
+        user,
+        MessageRole.assistant,
+        answer,
+        chat_id=question_schema.chat_id,
+        context=context,
+    )
 
+    await db.commit()
     return AnswerResponse(answer=answer, context=context)
 
 
 @router.get("/history", status_code=200, response_model=HistoryResponse)
 async def get_history(
+    chat_id: int,
     user: User = Depends(validate_user),
     db: AsyncSession = Depends(get_db),
 ) -> HistoryResponse:
+    chat = await db.get(Chat, chat_id)
+    if not chat or chat.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
     result = await db.execute(
         select(UserHistory)
-        .where(UserHistory.user_id == user.id)
+        .where(UserHistory.user_id == user.id, UserHistory.chat_id == chat_id)
         .order_by(UserHistory.created_at)
     )
     messages = result.scalars().all()

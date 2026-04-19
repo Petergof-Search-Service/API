@@ -10,6 +10,19 @@ class StatusResponse(BaseModel):
 class RagQuestion(BaseModel):
     index: str
     question: str
+    chat_id: int
+
+
+class ChatResponse(BaseModel):
+    id: int
+    title: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ChatListResponse(BaseModel):
+    chats: list[ChatResponse]
 
 
 class AnswerResponse(BaseModel):
