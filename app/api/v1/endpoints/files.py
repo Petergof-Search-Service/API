@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 
 import jwt
@@ -155,10 +156,22 @@ async def update_file_status_by_key(
     body: ServiceStatusUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
+    # Exact match first (OCR sends the original incoming/ key).
     result = await db.execute(select(File).where(File.system_key == body.system_key))
     file = result.scalar_one_or_none()
+
+    if file is None:
+        # Stem fallback: RAG processes files at OCR-result/…/{stem}.json
+        # while system_key is incoming/{stem}.pdf — same UUID stem, different path.
+        stem = Path(body.system_key).stem
+        result = await db.execute(
+            select(File).where(File.system_key.like(f"%/{stem}.%"))
+        )
+        file = result.scalar_one_or_none()
+
     if file is None:
         raise HTTPException(status_code=404, detail="File not found")
+
     await _apply_status(file, body.status, body.error_message, db)
     return {"ok": True}
 
