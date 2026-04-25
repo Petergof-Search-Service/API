@@ -11,6 +11,7 @@ from app.core.s3 import PRESIGNED_EXPIRES_IN, generate_upload_presigned_url
 from app.db.models.file import File
 from app.db.models.user import User
 from app.db.schemas import (
+    FilesResponse,
     IndexesResponse,
     IndexRequest,
     StatusResponse,
@@ -20,6 +21,7 @@ from app.db.schemas import (
 from app.db.session import get_db
 
 from rag.create_index import create_index as create_index_from_rag
+from rag.get_files import get_files as get_files_from_rag
 from rag.get_files import get_files_names2ids
 from rag.get_indexes import get_indexes as get_indexes_from_rag
 
@@ -64,6 +66,16 @@ async def create_index(index_request: IndexRequest) -> int:
     thread.start()
 
     return 200
+
+
+@router.get(
+    "/rag-files",
+    status_code=200,
+    response_model=FilesResponse,
+    dependencies=[Depends(validate_admin_user)],
+)
+async def get_rag_files() -> FilesResponse:
+    return FilesResponse(files=await get_files_from_rag(to_sort=True))
 
 
 @router.get(
