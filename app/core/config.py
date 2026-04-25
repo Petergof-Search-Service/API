@@ -19,5 +19,7 @@ class Settings(BaseSettings):
     S3_SECRET_KEY: str
     S3_ENDPOINT_URL: str = "https://storage.yandexcloud.net"
 
+    CLOUD_FUNCTION_API_KEY: str
+
 
 settings = Settings()

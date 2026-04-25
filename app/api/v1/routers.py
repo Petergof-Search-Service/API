@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     index_router,
     settings_router,
     chats_router,
+    files_router,
 )
 
 api_router = APIRouter()
@@ -21,3 +22,5 @@ api_router.include_router(index_router, tags=["Index endpoints"])
 api_router.include_router(settings_router, tags=["Settings endpoints"])
 
 api_router.include_router(chats_router, tags=["Chat endpoints"])
+
+api_router.include_router(files_router, tags=["Files endpoints"])

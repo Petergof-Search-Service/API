@@ -25,4 +25,5 @@ class UploadLinkRequest(BaseModel):
 class UploadLinkResponse(BaseModel):
     upload_url: str
     s3_key: str
+    file_id: int
     expires_in: int
