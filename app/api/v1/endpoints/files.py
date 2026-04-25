@@ -196,6 +196,7 @@ async def websocket_endpoint(
     try:
         user_id = await _ws_auth(token, db)
     except HTTPException:
+        await websocket.accept()
         await websocket.close(code=4001)
         return
 
