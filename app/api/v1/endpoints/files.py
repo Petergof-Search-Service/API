@@ -49,8 +49,8 @@ async def require_service_key(
 
 async def admin_or_service_key(
     request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
     x_service_key: Annotated[str | None, Header()] = None,
-    db: Annotated[AsyncSession, Depends(get_db)] = Depends(get_db),
 ) -> None:
     """Accepts either x-service-key header (cloud functions) or admin JWT."""
     if x_service_key == settings.CLOUD_FUNCTION_API_KEY:
