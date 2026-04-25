@@ -18,6 +18,7 @@ from .review import Review
 from .settings import SettingModel
 from .tokens import Token
 from .user import UserCreate, UserGet
+from .files import FileRecord, FileListResponse, StatusUpdate, ServiceStatusUpdate
 
 __all__ = [
     "AnswerResponse",
@@ -37,4 +38,8 @@ __all__ = [
     "HistoryResponse",
     "ChatResponse",
     "ChatListResponse",
+    "FileRecord",
+    "FileListResponse",
+    "StatusUpdate",
+    "ServiceStatusUpdate",
 ]

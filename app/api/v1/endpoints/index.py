@@ -1,21 +1,25 @@
 import asyncio
 import threading
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.dependencies import validate_admin_user, validate_user
 from app.core.s3 import PRESIGNED_EXPIRES_IN, generate_upload_presigned_url
+from app.db.models.file import File
+from app.db.models.user import User
 from app.db.schemas import (
-    FilesResponse,
     IndexesResponse,
     IndexRequest,
     StatusResponse,
     UploadLinkRequest,
     UploadLinkResponse,
 )
+from app.db.session import get_db
 
 from rag.create_index import create_index as create_index_from_rag
-from rag.get_files import get_files as get_files_from_rag
 from rag.get_files import get_files_names2ids
 from rag.get_indexes import get_indexes as get_indexes_from_rag
 
@@ -72,30 +76,37 @@ async def get_index_status() -> StatusResponse:
         return StatusResponse(status="not running")
 
 
-@router.get(
-    "/files",
-    status_code=200,
-    response_model=FilesResponse,
-    dependencies=[Depends(validate_admin_user)],
-)
-async def get_files() -> FilesResponse:
-    return FilesResponse(files=await get_files_from_rag(to_sort=True))
-
-
 @router.post(
     "/files/upload-link",
     status_code=200,
     response_model=UploadLinkResponse,
-    dependencies=[Depends(validate_admin_user)],
 )
-async def get_upload_link(body: UploadLinkRequest) -> UploadLinkResponse:
+async def get_upload_link(
+    body: UploadLinkRequest,
+    user: Annotated[User, Depends(validate_admin_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UploadLinkResponse:
     """Возвращает presigned URL для загрузки файла в S3 (фронт загружает по этой ссылке PUT)."""
     try:
         upload_url, s3_key = generate_upload_presigned_url(body.filename)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    s3_url = f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/{s3_key}"
+    file = File(
+        user_id=user.id,
+        original_filename=body.filename.strip(),
+        system_key=s3_key,
+        s3_url=s3_url,
+        status="pending_upload",
+    )
+    db.add(file)
+    await db.flush()
+    file_id = file.id
+
     return UploadLinkResponse(
         upload_url=upload_url,
         s3_key=s3_key,
+        file_id=file_id,
         expires_in=PRESIGNED_EXPIRES_IN,
     )
