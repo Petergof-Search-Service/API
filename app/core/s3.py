@@ -23,6 +23,15 @@ def make_s3_client() -> S3Client:
     )
 
 
+def delete_s3_objects(keys: list[str]) -> None:
+    client = make_s3_client()
+    for key in keys:
+        try:
+            client.delete_object(Bucket=settings.S3_BUCKET_NAME, Key=key)
+        except Exception:
+            pass
+
+
 def generate_upload_presigned_url(filename: str) -> tuple[str, str]:
     """
     Генерирует presigned URL для загрузки файла в S3 (PUT).
