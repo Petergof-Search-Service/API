@@ -3,33 +3,49 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import settings
 from app.core.dependencies import validate_user
 from app.core.security import create_token, get_hash, verify_refresh_token
+from app.db.models.organization import Organization, UserOrganization
 from app.db.schemas import Token, UserCreate, UserGet
+from app.db.schemas.organizations import OrgInfo
 from app.db.session import get_db
 from app.db.models.user import get_user, create_user, User
 
 router = APIRouter()
 
 
-def generate_tokens(user_email: str) -> Token:
+async def _get_user_orgs(user: User, db: AsyncSession) -> list[OrgInfo]:
+    result = await db.execute(
+        select(UserOrganization, Organization)
+        .join(Organization, Organization.id == UserOrganization.org_id)
+        .where(UserOrganization.user_id == user.id)
+        .order_by(Organization.id)
+    )
+    return [OrgInfo(id=org.id, name=org.name, role=uo.role) for uo, org in result.all()]
+
+
+async def build_token_response(user: User, db: AsyncSession) -> Token:
     access_token_expires = timedelta(minutes=int(settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     access_token = create_token(
-        data={"sub": user_email, "type": "access"}, expires_delta=access_token_expires
+        data={"sub": user.email, "type": "access"}, expires_delta=access_token_expires
     )
     refresh_token_expires = timedelta(days=int(settings.REFRESH_TOKEN_EXPIRE_DAYS))
     refresh_token = create_token(
-        data={"sub": user_email, "type": "refresh"}, expires_delta=refresh_token_expires
+        data={"sub": user.email, "type": "refresh"}, expires_delta=refresh_token_expires
     )
+    orgs = await _get_user_orgs(user, db)
     return Token(
-        access_token=access_token, refresh_token=refresh_token, token_type="bearer"
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        organizations=orgs,
     )
 
 
-# Feature: make refresh token unavailable after use
 @router.post("/refresh", response_model=Token)
 async def refresh_token(
     refresh_token: str = Header(), db: AsyncSession = Depends(get_db)
@@ -51,7 +67,7 @@ async def refresh_token(
             detail="Invalid refresh token",
         )
 
-    return generate_tokens(email)
+    return await build_token_response(user, db)
 
 
 @router.post("/token", response_model=Token)
@@ -73,7 +89,7 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return generate_tokens(form_data.username)
+    return await build_token_response(user, db)
 
 
 @router.post("/register", response_model=Token)
@@ -83,11 +99,9 @@ async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)) ->
         raise HTTPException(status_code=400, detail="User already registered")
 
     new_user = await create_user(db, user)
-    return generate_tokens(new_user.email)
+    return await build_token_response(new_user, db)
 
 
 @router.get("/me", response_model=UserGet)
 async def read_users_me(user: User = Depends(validate_user)) -> UserGet:
-    return UserGet(
-        email=user.email, is_admin=user.is_admin if user.is_admin is not None else False
-    )
+    return UserGet(email=user.email)

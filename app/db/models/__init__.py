@@ -5,6 +5,8 @@ from .user_settings import UserSetting, apply_update_settings
 from .chat import Chat, create_chat
 from .user_history import UserHistory, MessageRole, save_message
 from .file import File
+from .organization import Organization, UserOrganization
+from .org_index import OrgIndex
 
 __all__ = [
     "create_user",
@@ -20,4 +22,7 @@ __all__ = [
     "MessageRole",
     "save_message",
     "File",
+    "Organization",
+    "UserOrganization",
+    "OrgIndex",
 ]
