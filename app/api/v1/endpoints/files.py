@@ -200,9 +200,9 @@ async def delete_file(
 
     s3_keys = [
         file.system_key,
-        f"OCR-result/txt-files/{stem}.txt",
-        f"OCR-result/json-files/{stem}.json",
-        f"OCR-result/pdf-files/{stem}.pdf",
+        f"result/txt-files/{stem}.txt",
+        f"result/json-files/{stem}.json",
+        f"result/pdf-files/{stem}.pdf",
     ]
     await asyncio.to_thread(delete_s3_objects, s3_keys)
 
