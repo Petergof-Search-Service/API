@@ -3,8 +3,13 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class RagFileRecord(BaseModel):
+    id: int
+    name: str
+
+
 class FilesResponse(BaseModel):
-    files: list[str]
+    files: list[RagFileRecord]
 
 
 class IndexRecord(BaseModel):
@@ -21,7 +26,7 @@ class IndexesResponse(BaseModel):
 
 class IndexRequest(BaseModel):
     name: str
-    file_names: list[str]
+    file_ids: list[int]
 
 
 class UploadLinkRequest(BaseModel):

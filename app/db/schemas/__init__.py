@@ -3,6 +3,7 @@ from .index import (
     IndexRecord,
     IndexesResponse,
     IndexRequest,
+    RagFileRecord,
     UploadLinkRequest,
     UploadLinkResponse,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "UserGet",
     "Review",
     "FilesResponse",
+    "RagFileRecord",
     "IndexRecord",
     "IndexesResponse",
     "IndexRequest",
