@@ -5,6 +5,7 @@ from .index import router as index_router
 from .settings import router as settings_router
 from .chats import router as chats_router
 from .files import router as files_router
+from .organizations import router as organizations_router
 
 __all__ = [
     "rag_router",
@@ -14,4 +15,5 @@ __all__ = [
     "settings_router",
     "chats_router",
     "files_router",
+    "organizations_router",
 ]

@@ -16,7 +16,7 @@ engine = create_async_engine(
     max_overflow=10,  # Максимум дополнительных соединений
 )
 
-# Create async session factory
+# Create async session factory (also exported for background tasks)
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,

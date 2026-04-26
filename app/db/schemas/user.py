@@ -8,4 +8,3 @@ class UserCreate(BaseModel):
 
 class UserGet(BaseModel):
     email: str
-    is_admin: bool

@@ -1,32 +1,38 @@
+from dataclasses import dataclass
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from jwt.exceptions import InvalidTokenError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import settings
 from app.core.security import oauth2_scheme
+from app.db.models.organization import UserOrganization
 from app.db.models.user import User, get_user
 from app.db.session import get_db
+
+
+@dataclass
+class OrgMembership:
+    user: User
+    org_id: int
+    role: str
+
+    @property
+    def is_admin_or_owner(self) -> bool:
+        return self.role in ("admin", "owner")
+
+    @property
+    def is_owner(self) -> bool:
+        return self.role == "owner"
 
 
 async def validate_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    """Validate JWT token and return user.
-
-    Args:
-        token: JWT access token from Authorization header
-        db: Database session
-
-    Returns:
-        User: Authenticated user
-
-    Raises:
-        HTTPException: If token is invalid or user not found
-    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -57,19 +63,57 @@ async def validate_user(
 
 
 async def validate_admin_user(user: Annotated[User, Depends(validate_user)]) -> User:
-    """Validate that user is admin.
-
-    Args:
-        user: Authenticated user
-
-    Returns:
-        User: Admin user
-
-    Raises:
-        HTTPException: If user is not admin
-    """
     if not user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
     return user
+
+
+async def require_org_member(
+    user: Annotated[User, Depends(validate_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    x_organization_id: Annotated[int | None, Header()] = None,
+) -> OrgMembership:
+    if x_organization_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-Organization-ID header is required",
+        )
+
+    result = await db.execute(
+        select(UserOrganization).where(
+            UserOrganization.user_id == user.id,
+            UserOrganization.org_id == x_organization_id,
+        )
+    )
+    uo = result.scalar_one_or_none()
+    if uo is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this organization",
+        )
+
+    return OrgMembership(user=user, org_id=x_organization_id, role=uo.role)
+
+
+async def require_org_admin(
+    membership: Annotated[OrgMembership, Depends(require_org_member)],
+) -> OrgMembership:
+    if not membership.is_admin_or_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or owner role required",
+        )
+    return membership
+
+
+async def require_org_owner(
+    membership: Annotated[OrgMembership, Depends(require_org_member)],
+) -> OrgMembership:
+    if not membership.is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Owner role required",
+        )
+    return membership

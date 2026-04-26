@@ -8,7 +8,7 @@ class StatusResponse(BaseModel):
 
 
 class RagQuestion(BaseModel):
-    index: str
+    index_id: int
     question: str
     chat_id: int
 

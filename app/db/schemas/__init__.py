@@ -1,9 +1,18 @@
 from .index import (
     FilesResponse,
+    IndexRecord,
     IndexesResponse,
     IndexRequest,
     UploadLinkRequest,
     UploadLinkResponse,
+)
+from .organizations import (
+    AddMemberRequest,
+    MemberInfo,
+    MembersResponse,
+    OrgInfo,
+    OrganizationsResponse,
+    UpdateRoleRequest,
 )
 from .rag import (
     AnswerResponse,
@@ -29,6 +38,7 @@ __all__ = [
     "UserGet",
     "Review",
     "FilesResponse",
+    "IndexRecord",
     "IndexesResponse",
     "IndexRequest",
     "UploadLinkRequest",
@@ -42,4 +52,10 @@ __all__ = [
     "FileListResponse",
     "StatusUpdate",
     "ServiceStatusUpdate",
+    "OrgInfo",
+    "OrganizationsResponse",
+    "MemberInfo",
+    "MembersResponse",
+    "AddMemberRequest",
+    "UpdateRoleRequest",
 ]

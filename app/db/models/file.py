@@ -14,6 +14,9 @@ class File(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False
     )
+    org_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("organizations.id"), nullable=True
+    )
     original_filename: Mapped[str] = mapped_column(String, nullable=False)
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
     system_key: Mapped[str] = mapped_column(String, nullable=False, unique=True)

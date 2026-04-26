@@ -9,7 +9,6 @@ from fastapi import (
     Header,
     HTTPException,
     Query,
-    Request,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -20,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 
 from app.core.config import settings
-from app.core.dependencies import validate_admin_user
+from app.core.dependencies import OrgMembership, require_org_admin
 from app.core.s3 import delete_s3_objects
 from app.core.ws import manager
 from app.db.models.file import File
@@ -51,37 +50,20 @@ async def require_service_key(
         )
 
 
-async def admin_or_service_key(
-    request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    x_service_key: Annotated[str | None, Header()] = None,
-) -> None:
-    """Accepts either x-service-key header (cloud functions) or admin JWT."""
-    if x_service_key == settings.CLOUD_FUNCTION_API_KEY:
-        return
-
-    auth_header = request.headers.get("authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
-        )
-
-    token = auth_header.split(" ", 1)[1]
+async def _ws_auth(token: str, db: AsyncSession) -> int:
+    """Verify JWT for WS connection, return user_id."""
     try:
         payload = jwt.decode(
             token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
         email = payload.get("sub")
         if not isinstance(email, str) or payload.get("type") != "access":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-            )
+            raise ValueError
         user = await get_user(db, email)
-        if user is None or not user.is_admin:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-            )
-    except InvalidTokenError:
+        if user is None:
+            raise ValueError
+        return user.id
+    except (InvalidTokenError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
@@ -118,37 +100,21 @@ async def _apply_status(
     )
 
 
-async def _ws_auth(token: str, db: AsyncSession) -> int:
-    """Verify JWT for WS connection, return user_id."""
-    try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
-        email = payload.get("sub")
-        if not isinstance(email, str) or payload.get("type") != "access":
-            raise ValueError
-        user = await get_user(db, email)
-        if user is None:
-            raise ValueError
-        return user.id
-    except (InvalidTokenError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
-
-
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
 
-@router.get(
-    "/files",
-    response_model=FileListResponse,
-    dependencies=[Depends(admin_or_service_key)],
-)
-async def list_files(db: Annotated[AsyncSession, Depends(get_db)]) -> FileListResponse:
-    result = await db.execute(select(File).order_by(File.created_at.desc()))
+@router.get("/files", response_model=FileListResponse)
+async def list_files(
+    membership: Annotated[OrgMembership, Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> FileListResponse:
+    result = await db.execute(
+        select(File)
+        .where(File.org_id == membership.org_id)
+        .order_by(File.created_at.desc())
+    )
     files = result.scalars().all()
     return FileListResponse(files=[FileRecord.model_validate(f) for f in files])
 
@@ -159,13 +125,10 @@ async def update_file_status_by_key(
     body: ServiceStatusUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
-    # Exact match first (OCR sends the original incoming/ key).
     result = await db.execute(select(File).where(File.system_key == body.system_key))
     file = result.scalar_one_or_none()
 
     if file is None:
-        # Stem fallback: RAG processes files at OCR-result/…/{stem}.json
-        # while system_key is incoming/{stem}.pdf — same UUID stem, different path.
         stem = Path(body.system_key).stem
         result = await db.execute(
             select(File).where(File.system_key.like(f"%/{stem}.%"))
@@ -179,23 +142,33 @@ async def update_file_status_by_key(
     return {"ok": True}
 
 
-@router.patch("/files/{file_id}/status", dependencies=[Depends(validate_admin_user)])
+@router.patch("/files/{file_id}/status")
 async def update_file_status(
     file_id: int,
     body: StatusUpdate,
+    membership: Annotated[OrgMembership, Depends(require_org_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
     file = await _get_file_or_404(file_id, db)
+    if file.org_id != membership.org_id:
+        raise HTTPException(
+            status_code=403, detail="File does not belong to this organization"
+        )
     await _apply_status(file, body.status, body.error_message, db)
     return {"ok": True}
 
 
-@router.delete("/files/{file_id}", dependencies=[Depends(validate_admin_user)])
+@router.delete("/files/{file_id}")
 async def delete_file(
     file_id: int,
+    membership: Annotated[OrgMembership, Depends(require_org_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
     file = await _get_file_or_404(file_id, db)
+    if file.org_id is not None and file.org_id != membership.org_id:
+        raise HTTPException(
+            status_code=403, detail="File does not belong to this organization"
+        )
     stem = Path(file.system_key).stem
 
     s3_keys = [
