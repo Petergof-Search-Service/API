@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import Annotated
 
@@ -20,6 +21,7 @@ from sqlalchemy.sql import func
 
 from app.core.config import settings
 from app.core.dependencies import validate_admin_user
+from app.core.s3 import delete_s3_objects
 from app.core.ws import manager
 from app.db.models.file import File
 from app.db.models.user import get_user
@@ -30,6 +32,7 @@ from app.db.schemas.files import (
     StatusUpdate,
 )
 from app.db.session import get_db
+from rag.delete_file import delete_rag_file
 
 router = APIRouter()
 
@@ -184,6 +187,32 @@ async def update_file_status(
 ) -> dict:
     file = await _get_file_or_404(file_id, db)
     await _apply_status(file, body.status, body.error_message, db)
+    return {"ok": True}
+
+
+@router.delete("/files/{file_id}", dependencies=[Depends(validate_admin_user)])
+async def delete_file(
+    file_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    file = await _get_file_or_404(file_id, db)
+    stem = Path(file.system_key).stem
+
+    s3_keys = [
+        file.system_key,
+        f"result/txt-files/{stem}.txt",
+        f"result/json-files/{stem}.json",
+        f"result/pdf-files/{stem}.pdf",
+    ]
+    await asyncio.to_thread(delete_s3_objects, s3_keys)
+
+    try:
+        await delete_rag_file(stem)
+    except Exception:
+        pass
+
+    await db.delete(file)
+    await db.commit()
     return {"ok": True}
 
 
