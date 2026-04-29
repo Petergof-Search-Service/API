@@ -1,5 +1,4 @@
 import asyncio
-import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -10,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.dependencies import OrgMembership, require_org_admin, require_org_member
 from app.core.s3 import PRESIGNED_EXPIRES_IN, generate_upload_presigned_url
+from app.core.ws import manager
 from app.db.models.file import File
 from app.db.models.org_index import OrgIndex
 from app.db.schemas import (
@@ -32,11 +32,15 @@ router = APIRouter()
 index_task = False
 
 
-async def _save_index_to_db(org_id: int, name: str, vector_store_id: str) -> None:
+async def _save_index_to_db(
+    org_id: int, name: str, vector_store_id: str
+) -> IndexRecord:
     async with AsyncSessionLocal() as db:
         index = OrgIndex(org_id=org_id, name=name, vector_store_id=vector_store_id)
         db.add(index)
         await db.commit()
+        await db.refresh(index)
+        return IndexRecord.model_validate(index)
 
 
 async def _get_chunks_names_for_ids(file_ids: list[int], org_id: int) -> list[str]:
@@ -74,33 +78,61 @@ async def create_index(
 
     index_task = True
     org_id = membership.org_id
+    user_id = membership.user.id
 
-    def background_task() -> None:
+    async def background_task() -> None:
         global index_task
         try:
-            chunks_names = asyncio.run(
-                _get_chunks_names_for_ids(index_request.file_ids, org_id)
+            await manager.send(
+                user_id,
+                {
+                    "type": "index_status",
+                    "status": "running",
+                    "name": index_request.name,
+                },
             )
-            filenames2ids = asyncio.run(get_files_names2ids())
+
+            chunks_names = await _get_chunks_names_for_ids(
+                index_request.file_ids, org_id
+            )
+            filenames2ids = await get_files_names2ids()
             yandex_file_ids = [
                 filenames2ids[name] for name in chunks_names if name in filenames2ids
             ]
             if not yandex_file_ids:
                 raise ValueError("None of the selected files are indexed in Yandex")
 
-            result = asyncio.run(
-                create_index_from_rag(index_request.name, yandex_file_ids)
+            result = await create_index_from_rag(index_request.name, yandex_file_ids)
+            saved = await _save_index_to_db(
+                org_id, result["name"], result["vector_store_id"]
             )
-            asyncio.run(
-                _save_index_to_db(org_id, result["name"], result["vector_store_id"])
+
+            await manager.send(
+                user_id,
+                {
+                    "type": "index_status",
+                    "status": "done",
+                    "index": {
+                        "id": saved.id,
+                        "name": saved.name,
+                        "created_at": saved.created_at.isoformat(),
+                    },
+                },
             )
         except Exception as e:
             print(e)
+            await manager.send(
+                user_id,
+                {
+                    "type": "index_status",
+                    "status": "error",
+                    "error": str(e),
+                },
+            )
         finally:
             index_task = False
 
-    thread = threading.Thread(target=background_task)
-    thread.start()
+    asyncio.create_task(background_task())
 
     return 200
 
