@@ -119,6 +119,26 @@ async def list_files(
     return FileListResponse(files=[FileRecord.model_validate(f) for f in files])
 
 
+# Service-key route for the Watchdog cloud function: lists files across ALL orgs,
+# optionally filtered by status (e.g. ?status=ocr_processing&status=rag_indexing).
+# The watchdog has no JWT/org context, so this must use the service key, not require_org_admin.
+@router.get(
+    "/files/service",
+    response_model=FileListResponse,
+    dependencies=[Depends(require_service_key)],
+)
+async def list_files_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    status: Annotated[list[str] | None, Query()] = None,
+) -> FileListResponse:
+    stmt = select(File)
+    if status:
+        stmt = stmt.where(File.status.in_(status))
+    result = await db.execute(stmt)
+    files = result.scalars().all()
+    return FileListResponse(files=[FileRecord.model_validate(f) for f in files])
+
+
 # Literal route must be registered before parameterized /files/{file_id}/status
 @router.patch("/files/by-key/status", dependencies=[Depends(require_service_key)])
 async def update_file_status_by_key(
