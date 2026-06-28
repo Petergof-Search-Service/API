@@ -192,6 +192,10 @@ async def get_upload_link(
     db.add(file)
     await db.flush()
     file_id = file.id
+    # Коммитим до возврата file_id: иначе клиент получает id раньше, чем строка
+    # закоммичена, и немедленный PATCH /files/{id}/status ловит 404 (запись ещё
+    # не видна другому запросу/сессии).
+    await db.commit()
 
     return UploadLinkResponse(
         upload_url=upload_url,
