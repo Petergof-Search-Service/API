@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from pathlib import Path
 from typing import Annotated
 
@@ -34,6 +35,54 @@ from app.db.session import get_db
 from rag.delete_file import delete_rag_file
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Status state machine
+# ---------------------------------------------------------------------------
+
+# Линейный конвейер обработки файла: двигаться по нему можно только вперёд.
+_PIPELINE = (
+    "pending_upload",
+    "uploading",
+    "uploaded",
+    "ocr_processing",
+    "ocr_done",
+    "rag_indexing",
+    "indexed",
+)
+_PIPELINE_RANK = {name: i for i, name in enumerate(_PIPELINE)}
+
+# Ошибочные финалы: попасть в них можно с любой не-терминальной ступени.
+_ERROR_STATUSES = {"failed", "dead"}
+# Терминальные статусы: уйти из них нельзя (indexed — успешный финал).
+_TERMINAL_STATUSES = {"indexed"} | _ERROR_STATUSES
+
+
+def _can_transition(current: str, new: str) -> bool:
+    """Разрешён ли переход статуса ``current -> new``.
+
+    Защищает от гонок (например, запоздалый ``ocr_done`` от OCR не должен
+    перетереть уже выставленный RAG ``indexed``):
+
+    - из терминального статуса (``indexed``/``failed``/``dead``) — никуда;
+    - в ошибку (``failed``/``dead``) — можно с любой не-терминальной ступени;
+    - по конвейеру — только вперёд (ранг строго больше текущего);
+    - тот же статус — нет (чтобы не сбрасывать ``status_changed_at``);
+    - незнакомые статусы — разрешаем (обратная совместимость).
+    """
+    if current == new:
+        return False
+    if current in _TERMINAL_STATUSES:
+        return False
+    if new in _ERROR_STATUSES:
+        return True
+    cur_rank = _PIPELINE_RANK.get(current)
+    new_rank = _PIPELINE_RANK.get(new)
+    if cur_rank is not None and new_rank is not None:
+        return new_rank > cur_rank
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +133,21 @@ async def _get_file_or_404(file_id: int, db: AsyncSession) -> File:
 
 async def _apply_status(
     file: File, new_status: str, error_message: str | None, db: AsyncSession
-) -> None:
+) -> bool:
+    """Применить новый статус, если переход разрешён state-machine.
+
+    Возвращает ``True``, если статус изменён, иначе ``False`` (переход проигнорирован).
+    """
+    if not _can_transition(file.status, new_status):
+        logger.info(
+            "Ignored out-of-order status update for file %s (key=%s): %s -> %s",
+            file.id,
+            file.system_key,
+            file.status,
+            new_status,
+        )
+        return False
+
     file.status = new_status
     file.error_message = error_message
     file.status_changed_at = func.now()
@@ -98,6 +161,7 @@ async def _apply_status(
             "error_message": error_message,
         },
     )
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -158,8 +222,8 @@ async def update_file_status_by_key(
     if file is None:
         raise HTTPException(status_code=404, detail="File not found")
 
-    await _apply_status(file, body.status, body.error_message, db)
-    return {"ok": True}
+    applied = await _apply_status(file, body.status, body.error_message, db)
+    return {"ok": True, "applied": applied}
 
 
 @router.patch("/files/{file_id}/status")
@@ -174,8 +238,8 @@ async def update_file_status(
         raise HTTPException(
             status_code=403, detail="File does not belong to this organization"
         )
-    await _apply_status(file, body.status, body.error_message, db)
-    return {"ok": True}
+    applied = await _apply_status(file, body.status, body.error_message, db)
+    return {"ok": True, "applied": applied}
 
 
 @router.delete("/files/{file_id}")
