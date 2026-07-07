@@ -21,5 +21,13 @@ class Settings(BaseSettings):
 
     CLOUD_FUNCTION_API_KEY: str
 
+    # Поллер статуса сборки индексов (см. app/core/index_poller.py)
+    INDEX_POLL_INTERVAL_SECONDS: int = 5
+    INDEX_POLL_BATCH: int = 20
+    # Сборка идёт минуты—часы; по превышении билд помечается failed.
+    INDEX_BUILD_TIMEOUT_SECONDS: int = 10800  # 3 часа
+    # building-строка без vector_store_id старше этого = create не завершился (сбой) → failed.
+    INDEX_STALE_CREATE_SECONDS: int = 120
+
 
 settings = Settings()

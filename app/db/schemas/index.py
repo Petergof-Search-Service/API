@@ -12,9 +12,17 @@ class FilesResponse(BaseModel):
     files: list[RagFileRecord]
 
 
+class IndexProgress(BaseModel):
+    completed: int
+    total: int
+
+
 class IndexRecord(BaseModel):
     id: int
     name: str
+    status: str
+    progress: IndexProgress | None = None
+    error_message: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
