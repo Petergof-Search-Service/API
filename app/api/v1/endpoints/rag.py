@@ -14,6 +14,7 @@ from app.db.models import (
     save_message,
     UserHistory,
     OrgIndex,
+    INDEX_READY,
 )
 from app.db.schemas import AnswerResponse, RagQuestion, HistoryResponse, HistoryMessage
 from app.db.session import get_db
@@ -41,6 +42,10 @@ async def get_answer_from_rag(
     index = await db.get(OrgIndex, question_schema.index_id)
     if not index or index.org_id != membership.org_id:
         raise HTTPException(status_code=404, detail="Index not found")
+    # Индекс должен быть достроен (building/failed нельзя искать; у них
+    # vector_store_id может отсутствовать или указывать на неготовый стор).
+    if index.status != INDEX_READY or index.vector_store_id is None:
+        raise HTTPException(status_code=409, detail="Index is not ready")
 
     chat = await db.get(Chat, question_schema.chat_id)
     if not chat or chat.user_id != membership.user.id:

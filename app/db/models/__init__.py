@@ -6,7 +6,12 @@ from .chat import Chat, create_chat
 from .user_history import UserHistory, MessageRole, save_message
 from .file import File
 from .organization import Organization, UserOrganization
-from .org_index import OrgIndex
+from .org_index import (
+    OrgIndex,
+    INDEX_BUILDING,
+    INDEX_READY,
+    INDEX_FAILED,
+)
 
 __all__ = [
     "create_user",
@@ -25,4 +30,7 @@ __all__ = [
     "Organization",
     "UserOrganization",
     "OrgIndex",
+    "INDEX_BUILDING",
+    "INDEX_READY",
+    "INDEX_FAILED",
 ]
