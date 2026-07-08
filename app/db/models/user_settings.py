@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
+from app.core.prompts import DEFAULT_RAG_PROMPT
 from app.db import Base
 from app.db.schemas import SettingModel
 
@@ -20,7 +21,7 @@ class UserSetting(Base):
     prompt: Mapped[str] = mapped_column(
         String,
         nullable=False,
-        default="Вы ассистируете научного руководителя музейного комплекса Петергоф. Ниже вам дан контекст, откуда брать информацию. Разрешено брать сразу несколько текстов. Отвечайте на вопросы, которые он задает. Игнорируйте контекст, если считаете его нерелевантным. Вместе с ответом также напишите название файла и страницу, откуда была взята информация.. Ответь на вопрос: ",
+        default=DEFAULT_RAG_PROMPT,
     )
     temperature: Mapped[float] = mapped_column(Float, default=0.2, nullable=False)
     count_vector: Mapped[int] = mapped_column(Integer, default=15, nullable=False)

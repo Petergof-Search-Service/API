@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from openai import AsyncOpenAI
+
+from app.core.prompts import DEFAULT_RAG_PROMPT
 from .config import settings
 
 
@@ -136,15 +138,7 @@ async def get_answer(
     prompt: str | None = None,
 ) -> tuple[str, str]:
     if prompt is None:
-        prompt = (
-            "Ты ассистируешь научного сотрудника музейного комплекса Петергоф.\n"
-            "Отвечай строго ТОЛЬКО на основе текста в блоке КОНТЕКСТ.\n"
-            "Блок ИСТОРИЯ ДИАЛОГА используй только для понимания того, к чему относятся "
-            "местоимения, сокращённые ссылки и уточняющие вопросы.\n"
-            "Ничего не выдумывай. Если ответа нет в контексте — так и скажи.\n"
-            "В конце ответа обязательно укажи названия файлов и страницы, "
-            "на которые опирается твой ответ."
-        )
+        prompt = DEFAULT_RAG_PROMPT
 
     client = _make_client()
 
