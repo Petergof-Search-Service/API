@@ -42,28 +42,20 @@ OLD_DEFAULT_PROMPT = (
 def upgrade() -> None:
     # Мигрируем только тех, кто остался на старом дефолте, не трогая
     # пользователей, которые уже поменяли промпт под себя.
-    stmt = (
-        text(
-            "UPDATE users_setting SET prompt = :new_prompt "
-            "WHERE prompt = :old_prompt"
-        )
-        .bindparams(
-            bindparam("new_prompt", value=DEFAULT_RAG_PROMPT),
-            bindparam("old_prompt", value=OLD_DEFAULT_PROMPT),
-        )
+    stmt = text(
+        "UPDATE users_setting SET prompt = :new_prompt WHERE prompt = :old_prompt"
+    ).bindparams(
+        bindparam("new_prompt", value=DEFAULT_RAG_PROMPT),
+        bindparam("old_prompt", value=OLD_DEFAULT_PROMPT),
     )
     op.execute(stmt)
 
 
 def downgrade() -> None:
-    stmt = (
-        text(
-            "UPDATE users_setting SET prompt = :old_prompt "
-            "WHERE prompt = :new_prompt"
-        )
-        .bindparams(
-            bindparam("new_prompt", value=DEFAULT_RAG_PROMPT),
-            bindparam("old_prompt", value=OLD_DEFAULT_PROMPT),
-        )
+    stmt = text(
+        "UPDATE users_setting SET prompt = :old_prompt WHERE prompt = :new_prompt"
+    ).bindparams(
+        bindparam("new_prompt", value=DEFAULT_RAG_PROMPT),
+        bindparam("old_prompt", value=OLD_DEFAULT_PROMPT),
     )
     op.execute(stmt)
