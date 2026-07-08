@@ -1,7 +1,7 @@
-import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import cast
 
+import bcrypt
 import jwt
 from fastapi import HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -41,5 +41,19 @@ def create_token(data: dict, expires_delta: timedelta = timedelta(minutes=15)) -
     )
 
 
-def get_hash(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+def hash_password(password: str) -> str:
+    """Хеширует пароль bcrypt. Соль генерируется на каждый вызов и входит в
+    результат (формат ``$2b$...``). bcrypt усекает вход до 72 байт."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Constant-time проверка пароля против bcrypt-хеша.
+
+    ``bcrypt.checkpw`` сравнивает в постоянное время. На некорректном/не-bcrypt
+    значении в БД (например, оставшийся legacy SHA-256) бросает ``ValueError`` —
+    трактуем как невалидный пароль, а не 500."""
+    try:
+        return bcrypt.checkpw(password.encode(), stored_hash.encode())
+    except ValueError:
+        return False
