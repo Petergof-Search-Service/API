@@ -23,3 +23,4 @@ repos:
           - pydantic>=2
           - types-requests
           - boto3-stubs[s3]
+          - bcrypt

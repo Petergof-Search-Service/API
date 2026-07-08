@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 from app.db.models.user_settings import UserSetting
 from app.db.schemas import UserCreate
-from app.core import get_hash
+from app.core.security import hash_password
 
 from datetime import datetime
 
@@ -38,7 +38,7 @@ class User(Base):
 async def create_user(db: AsyncSession, user_db: UserCreate) -> User:
     db_item = User(
         email=user_db.email,
-        hashed_password=get_hash(user_db.password),
+        hashed_password=hash_password(user_db.password),
         settings=UserSetting(),
     )
     db.add(db_item)

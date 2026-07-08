@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import settings
 from app.core.dependencies import validate_user
-from app.core.security import create_token, get_hash, verify_refresh_token
+from app.core.security import create_token, verify_password, verify_refresh_token
 from app.db.models.organization import Organization, UserOrganization
 from app.db.schemas import Token, UserCreate, UserGet
 from app.db.schemas.organizations import OrgInfo
@@ -82,7 +82,7 @@ async def login_for_access_token(
             detail="Incorrect email",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if user.hashed_password != get_hash(form_data.password):
+    if not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect password",
