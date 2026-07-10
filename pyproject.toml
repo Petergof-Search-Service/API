@@ -5,6 +5,10 @@ package-mode = false
 mypy = "^1.19.1"
 boto3-stubs = {extras = ["lambda", "s3"], version = "^1.42.50"}
 pre-commit = "^4.5.1"
+pytest = "^9.1.1"
+pytest-asyncio = "^1.4.0"
+httpx = "^0.28.1"
+aiosqlite = "^0.22.1"
 
 [project]
 name = "api"
@@ -35,6 +39,10 @@ dependencies = [
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
 
 [tool.mypy]
 python_version = "3.13"

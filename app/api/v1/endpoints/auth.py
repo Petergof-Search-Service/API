@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import settings
@@ -12,6 +13,7 @@ from app.core.security import create_token, verify_password, verify_refresh_toke
 from app.db.models.organization import Organization, UserOrganization
 from app.db.schemas import Token, UserCreate, UserGet
 from app.db.schemas.organizations import OrgInfo
+from app.db.schemas.user import normalize_email
 from app.db.session import get_db
 from app.db.models.user import get_user, create_user, User
 
@@ -75,7 +77,7 @@ async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: AsyncSession = Depends(get_db),
 ) -> Token:
-    user: User | None = await get_user(db, form_data.username)
+    user: User | None = await get_user(db, normalize_email(form_data.username))
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -94,11 +96,14 @@ async def login_for_access_token(
 
 @router.post("/register", response_model=Token)
 async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)) -> Token:
-    existing_user = await get_user(db, user.email)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="User already registered")
+    # Атомарно: полагаемся на UNIQUE(users.email). Гонка двух регистраций одного email
+    # — ровно одна пройдёт, вторая получит IntegrityError на commit → 409.
+    try:
+        new_user = await create_user(db, user)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="User already registered")
 
-    new_user = await create_user(db, user)
     return await build_token_response(new_user, db)
 
 

@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from app.db.schemas.user import normalize_email
 
 
 class OrgInfo(BaseModel):
@@ -24,6 +26,11 @@ class MembersResponse(BaseModel):
 class AddMemberRequest(BaseModel):
     email: str
     role: str  # 'user' or 'admin'
+
+    @field_validator("email")
+    @classmethod
+    def _normalize_email(cls, value: str) -> str:
+        return normalize_email(value)
 
 
 class UpdateRoleRequest(BaseModel):
