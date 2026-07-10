@@ -1,11 +1,13 @@
 from typing import LiteralString
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.core import settings
 from app.core.dependencies import OrgMembership, require_org_member, validate_user
+from app.core.rate_limit import limiter, user_or_ip_key
 from app.db.models import (
     User,
     Chat,
@@ -32,7 +34,9 @@ async def update_users_activity(
 
 
 @router.post("/answer", status_code=200, response_model=AnswerResponse)
+@limiter.limit(settings.RATE_LIMIT_ANSWER, key_func=user_or_ip_key)
 async def get_answer_from_rag(
+    request: Request,
     question_schema: RagQuestion,
     membership: OrgMembership = Depends(require_org_member),
     _: None = Depends(update_users_activity),

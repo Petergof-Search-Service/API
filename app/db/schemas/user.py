@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 def normalize_email(value: str) -> str:
@@ -12,8 +12,9 @@ def normalize_email(value: str) -> str:
 
 
 class UserCreate(BaseModel):
-    email: str
-    password: str
+    # 254 — RFC-предел длины email; 72 — предел bcrypt (см. security.hash_password).
+    email: str = Field(max_length=254)
+    password: str = Field(min_length=8, max_length=72)
 
     @field_validator("email")
     @classmethod

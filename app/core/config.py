@@ -29,5 +29,10 @@ class Settings(BaseSettings):
     # building-строка без vector_store_id старше этого = create не завершился (сбой) → failed.
     INDEX_STALE_CREATE_SECONDS: int = 120
 
+    # Rate limiting (slowapi); формат "<count>/<period>", напр. "5/minute".
+    RATE_LIMIT_LOGIN: str = "5/minute"  # /token и /register
+    RATE_LIMIT_REFRESH: str = "10/minute"  # /refresh
+    RATE_LIMIT_ANSWER: str = "20/minute"  # per-identity для /answer
+
 
 settings = Settings()

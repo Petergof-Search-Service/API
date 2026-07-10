@@ -27,7 +27,7 @@ os.environ.setdefault("S3_ACCESS_KEY", "test-access")
 os.environ.setdefault("S3_SECRET_KEY", "test-secret")
 os.environ.setdefault("CLOUD_FUNCTION_API_KEY", "test-cf-key")
 
-from collections.abc import AsyncGenerator  # noqa: E402
+from collections.abc import AsyncGenerator, Generator  # noqa: E402
 
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
@@ -38,10 +38,29 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+import pytest  # noqa: E402
+
 import app.db.models as _models  # noqa: E402, F401  регистрирует таблицы в Base.metadata
+from app.core.rate_limit import limiter  # noqa: E402
 from app.db import Base  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def reset_limiter() -> Generator[None, None, None]:
+    """По умолчанию отключаем rate-лимитер и чистим его in-memory storage.
+
+    `limiter` — синглтон на `app.state`, общий для всего процесса. Без сброса
+    счётчики протекают между тестами и роняют существующие `test_auth` (много
+    `/register`/`/token` с одним IP-ключом за минуту). Тесты лимитов (test_rate_limit)
+    включают лимитер явно внутри себя.
+    """
+    limiter.reset()
+    limiter.enabled = False
+    yield
+    limiter.enabled = True
+    limiter.reset()
 
 
 @pytest_asyncio.fixture
