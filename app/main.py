@@ -2,12 +2,25 @@ import asyncio
 import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import cast
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from app.api import v1_router
 from app.core.index_poller import index_poller_loop
+from app.core.rate_limit import limiter
+
+
+def _rate_limit_handler(request: Request, exc: Exception) -> Response:
+    # slowapi типизирует хендлер под RateLimitExceeded, а add_exception_handler
+    # ждёт Callable[..., Exception]; сужаем тип (сюда попадает только RateLimitExceeded).
+    return _rate_limit_exceeded_handler(request, cast(RateLimitExceeded, exc))
 
 
 @asynccontextmanager
@@ -26,6 +39,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Rate limiting (slowapi): лимитер, обработчик 429 и middleware, применяющее
+# лимиты, объявленные декораторами @limiter.limit(...) на эндпоинтах.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

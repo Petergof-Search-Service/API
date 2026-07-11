@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status, Depends, Header
+from fastapi import APIRouter, HTTPException, Request, status, Depends, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import settings
 from app.core.dependencies import validate_user
+from app.core.rate_limit import limiter
 from app.core.security import create_token, verify_password, verify_refresh_token
 from app.db.models.organization import Organization, UserOrganization
 from app.db.schemas import Token, UserCreate, UserGet
@@ -49,8 +50,11 @@ async def build_token_response(user: User, db: AsyncSession) -> Token:
 
 
 @router.post("/refresh", response_model=Token)
+@limiter.limit(settings.RATE_LIMIT_REFRESH)
 async def refresh_token(
-    refresh_token: str = Header(), db: AsyncSession = Depends(get_db)
+    request: Request,
+    refresh_token: str = Header(),
+    db: AsyncSession = Depends(get_db),
 ) -> Token:
     payload = verify_refresh_token(refresh_token)
 
@@ -73,7 +77,9 @@ async def refresh_token(
 
 
 @router.post("/token", response_model=Token)
+@limiter.limit(settings.RATE_LIMIT_LOGIN)
 async def login_for_access_token(
+    request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: AsyncSession = Depends(get_db),
 ) -> Token:
@@ -95,7 +101,10 @@ async def login_for_access_token(
 
 
 @router.post("/register", response_model=Token)
-async def register_user(user: UserCreate, db: AsyncSession = Depends(get_db)) -> Token:
+@limiter.limit(settings.RATE_LIMIT_LOGIN)
+async def register_user(
+    request: Request, user: UserCreate, db: AsyncSession = Depends(get_db)
+) -> Token:
     # Атомарно: полагаемся на UNIQUE(users.email). Гонка двух регистраций одного email
     # — ровно одна пройдёт, вторая получит IntegrityError на commit → 409.
     try:

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.db.schemas.user import normalize_email
 
@@ -24,7 +24,7 @@ class MembersResponse(BaseModel):
 
 
 class AddMemberRequest(BaseModel):
-    email: str
+    email: str = Field(max_length=254)  # RFC-предел длины email
     role: str  # 'user' or 'admin'
 
     @field_validator("email")
