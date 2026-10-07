@@ -23,6 +23,7 @@ from app.db.session import get_db
 
 from rag.get_files import get_files_names2ids
 from rag.create_index import create_vector_store, delete_index
+from rag.upload_file import ensure_chunks_file
 
 router = APIRouter()
 
@@ -35,10 +36,19 @@ async def _resolve_yandex_file_ids(
         select(File).where(File.id.in_(file_ids), File.org_id == org_id)
     )
     files = result.scalars().all()
-    chunks_names = [f"{Path(f.system_key).stem}.chunks.jsonl" for f in files]
 
     filenames2ids = await get_files_names2ids()
-    return [filenames2ids[name] for name in chunks_names if name in filenames2ids]
+
+    resolved: list[str] = []
+    for f in files:
+        stem = Path(f.system_key).stem
+        yandex_id = filenames2ids.get(f"{stem}.chunks.jsonl")
+        # Файла нет в AI Studio (истёк по TTL) — пересоздаём из durable-источника в S3.
+        if yandex_id is None:
+            yandex_id = await ensure_chunks_file(stem)
+        if yandex_id is not None:
+            resolved.append(yandex_id)
+    return resolved
 
 
 @router.get("/indexes", status_code=200, response_model=IndexesResponse)

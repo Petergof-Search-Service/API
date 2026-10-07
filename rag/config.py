@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     RAG_BUCKET_NAME: str = "markup-baket"
     RAG_S3_ENDPOINT_URL: str = "https://storage.yandexcloud.net"
     RAG_CHUNKS_PATH: str = "data/chunks"
+    # Префикс в S3, куда RAG-функция кладёт готовый chunks.jsonl как durable-источник;
+    # отсюда файл пересоздаётся в AI Studio по требованию (см. rag/upload_file.py).
+    RAG_CHUNKS_STORE_PATH: str = "data/chunks"
     RAG_MAX_CHUNK_LEN: int = 8000
     RAG_PAGE_MARK_RE: re.Pattern[str] = re.compile(r"\[PAGE\s+(\d+)\]")
     RAG_PAGE_MARK_REMOVE_RE: re.Pattern[str] = re.compile(r"\s*\[PAGE\s+\d+\]\s*\n?")
