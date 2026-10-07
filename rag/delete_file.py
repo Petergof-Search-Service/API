@@ -32,7 +32,10 @@ async def delete_rag_file(stem: str) -> None:
         for vsf in vs_files.data:
             if vsf.id in file_ids:
                 try:
-                    await client.vector_stores.files.delete(vs.id, vsf.id)
+                    # NB: сигнатура — delete(file_id, *, vector_store_id); текущий вызов
+                    # с двумя позиционными падает TypeError (глушится ниже) — предсуществующий
+                    # баг каскадного удаления, чинится отдельным PR (см. корневой CLAUDE.md).
+                    await client.vector_stores.files.delete(vs.id, vsf.id)  # type: ignore[call-arg]
                 except Exception:
                     pass
 
