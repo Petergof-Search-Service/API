@@ -26,6 +26,12 @@ os.environ.setdefault("S3_BUCKET_NAME", "test-bucket")
 os.environ.setdefault("S3_ACCESS_KEY", "test-access")
 os.environ.setdefault("S3_SECRET_KEY", "test-secret")
 os.environ.setdefault("CLOUD_FUNCTION_API_KEY", "test-cf-key")
+# rag.config.Settings() требует эти ключи на импорте (app.main тянет rag.*);
+# dummy-значения держат тесты гермётичными — реальные вызовы AI Studio не идут.
+os.environ.setdefault("RAG_YANDEX_API_KEY", "test-rag-key")
+os.environ.setdefault("RAG_YANDEX_FOLDER_ID", "test-folder")
+os.environ.setdefault("RAG_ACCESS_KEY", "test-rag-access")
+os.environ.setdefault("RAG_SECRET_KEY", "test-rag-secret")
 
 from collections.abc import AsyncGenerator, Generator  # noqa: E402
 

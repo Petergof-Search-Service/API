@@ -13,6 +13,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.api import v1_router
+from app.core.index_keepalive import index_keepalive_loop
 from app.core.index_poller import index_poller_loop
 from app.core.rate_limit import limiter
 
@@ -25,17 +26,22 @@ def _rate_limit_handler(request: Request, exc: Exception) -> Response:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Фоновый поллер статуса сборки индексов. Состояние сборки durable в БД,
-    # поэтому после редеплоя петля просто продолжает добивать building-строки.
+    # Два фоновых цикла, оба durable в БД и безопасны к редеплою:
+    #  - index_poller: двигает building → ready|failed (сборка не шлёт вебхуков);
+    #  - index_keepalive: search-пинг по ready-индексам, иначе стор истекает по TTL.
     stop_event = asyncio.Event()
     poller_task = asyncio.create_task(index_poller_loop(stop_event))
+    keepalive_task = asyncio.create_task(index_keepalive_loop(stop_event))
     try:
         yield
     finally:
         stop_event.set()
         poller_task.cancel()
+        keepalive_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await poller_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await keepalive_task
 
 
 app = FastAPI(lifespan=lifespan)

@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     # building-строка без vector_store_id старше этого = create не завершился (сбой) → failed.
     INDEX_STALE_CREATE_SECONDS: int = 120
 
+    # Keep-alive индексов (см. app/core/index_keepalive.py): периодический search-пинг
+    # обновляет last_active_at у vector store, иначе стор истекает по TTL (30д) и молча
+    # удаляется, а строка в БД остаётся ready. Интервал — с большим запасом меньше TTL.
+    INDEX_KEEPALIVE_INTERVAL_SECONDS: int = 86400  # сутки
+    INDEX_KEEPALIVE_QUERY: str = "ping"
+
     # Rate limiting (slowapi); формат "<count>/<period>", напр. "5/minute".
     RATE_LIMIT_LOGIN: str = "5/minute"  # /token и /register
     RATE_LIMIT_REFRESH: str = "10/minute"  # /refresh
