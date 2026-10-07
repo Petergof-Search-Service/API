@@ -51,3 +51,24 @@ async def delete_index(vector_store_id: str) -> None:
     """Удаляет vector store в AI Studio."""
     client = _make_client()
     await client.vector_stores.delete(vector_store_id)
+
+
+def _search_client() -> AsyncOpenAI:
+    # Тот же base_url, что и у чата (rag/main.py): поиск идёт через rest-assistant.
+    return AsyncOpenAI(
+        api_key=settings.RAG_YANDEX_API_KEY,
+        base_url="https://rest-assistant.api.cloud.yandex.net/v1",
+        project=settings.RAG_YANDEX_FOLDER_ID,
+    )
+
+
+async def touch_index(vector_store_id: str, query: str = "ping") -> None:
+    """Keep-alive: дешёвый поиск по стору, чтобы обновить ``last_active_at``.
+
+    Стор создаётся с TTL ``{"anchor": "last_active_at", "days": 30}`` — без
+    использования он истекает и молча удаляется. Поиск считается «использованием»
+    и сбрасывает таймер (тот же путь, что и чат: :func:`rag.main.get_answer`).
+    Исключения наружу — их классифицирует вызывающий (``NotFoundError`` ⇒ стор пропал).
+    """
+    client = _search_client()
+    await client.vector_stores.search(vector_store_id=vector_store_id, query=query)
